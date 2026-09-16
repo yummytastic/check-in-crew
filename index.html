@@ -1,0 +1,1014 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Check-In Crew</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: system-ui, sans-serif;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .type-choice {
+        flex-basis: 100%;
+      }
+      .type-choice .muted {
+        display: block;
+        margin-top: 6px;
+      }
+      html,
+      body {
+        min-height: 100%;
+        overflow-y: auto;
+        touch-action: pan-y;
+      }
+      body {
+        margin: 0;
+        background: #101214;
+        color: #f1f3f5;
+      }
+      main {
+        max-width: 1100px;
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: 22px 16px 48px;
+        touch-action: pan-y;
+      }
+      header,
+      .toolbar,
+      .series-head,
+      .actions,
+      .settings {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: 1.55rem;
+      }
+      h2 {
+        font-size: 1.15rem;
+      }
+      header {
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      .toolbar {
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+      .series {
+        background: #1a1d20;
+        border: 1px solid #34383c;
+        border-radius: 12px;
+        margin: 14px 0;
+        overflow: hidden;
+      }
+      .series summary {
+        cursor: pointer;
+        list-style-position: inside;
+        padding: 16px;
+        background: #202428;
+      }
+      .series summary::marker {
+        color: #aeb5bc;
+      }
+      .series-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        vertical-align: middle;
+      }
+      .series-title h2 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      #series-actions {
+        margin-bottom: 8px;
+      }
+      .series-body {
+        padding: 0 16px 16px;
+      }
+      .series-head {
+        justify-content: space-between;
+        padding: 16px;
+        background: #202428;
+      }
+      .meta,
+      .muted {
+        color: #aeb5bc;
+        font-size: 0.9rem;
+      }
+      #privacy-tools {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 18px;
+      }
+      .quiet-link {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: #9fc8ff;
+        cursor: pointer;
+        padding: 4px;
+        text-decoration: underline;
+      }
+      .badge {
+        border-radius: 999px;
+        padding: 4px 9px;
+        font-size: 0.78rem;
+        font-weight: 650;
+      }
+      .active {
+        background: #245b3b;
+        color: #baf3cf;
+      }
+      .paused {
+        background: #5d4221;
+        color: #ffdda6;
+      }
+      .schedule {
+        overflow-x: auto;
+        padding: 0 16px 16px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 650px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #303438;
+        padding: 9px 8px;
+        text-align: left;
+        font-size: 0.88rem;
+      }
+      th {
+        color: #aeb5bc;
+        font-weight: 600;
+      }
+      .status-posted {
+        color: #86e0a6;
+      }
+      .status-uncertain {
+        color: #ffb4a7;
+      }
+      .status-scheduled {
+        color: #c7cdd3;
+      }
+      .status-not-posted {
+        color: #ffdda6;
+      }
+      .settings {
+        padding: 0 16px 16px;
+        align-items: end;
+      }
+      label {
+        display: grid;
+        gap: 5px;
+        color: #cdd2d7;
+        font-size: 0.82rem;
+      }
+      label.checkbox-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 24px;
+        line-height: 1.25;
+      }
+      label.checkbox-label input[type='checkbox'] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        padding: 0;
+        flex: 0 0 16px;
+        accent-color: #3f86d1;
+      }
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+        border-radius: 7px;
+        border: 1px solid #565d63;
+        padding: 8px 10px;
+        background: #111315;
+        color: inherit;
+      }
+      button {
+        cursor: pointer;
+        background: #2b6cb0;
+        border-color: #3f86d1;
+        font-weight: 650;
+      }
+      button.secondary {
+        background: #252a2f;
+        border-color: #565d63;
+      }
+      button.danger {
+        background: #70332e;
+        border-color: #a6524a;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+      button.link-button {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #8fc7ff;
+        font-weight: 500;
+        text-decoration: underline;
+      }
+      textarea {
+        min-width: 260px;
+        min-height: 110px;
+        resize: vertical;
+      }
+      .templates {
+        display: grid;
+        gap: 10px;
+        margin: 8px 0 18px;
+        padding-top: 12px;
+        border-top: 1px solid #303438;
+      }
+      .title-format {
+        display: grid;
+        gap: 6px;
+      }
+      .edit-section,
+      .body-format,
+      .month-picker {
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+      }
+      .edit-section + .edit-section {
+        margin-top: 12px;
+        padding-top: 16px;
+        border-top: 1px solid #34383c;
+      }
+      .default-body {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font: inherit;
+        color: #aeb5bc;
+        padding: 10px;
+      }
+      .body-format summary {
+        padding: 6px 0;
+        background: transparent;
+      }
+      [data-title-summary],
+      [data-title-example],
+      [data-host-summary] {
+        overflow-wrap: anywhere;
+      }
+      .save-status {
+        font-size: 0.85rem;
+      }
+      .month-picker {
+        max-width: 640px;
+      }
+      .month-picker .actions {
+        align-items: end;
+      }
+      .shortcodes {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .shortcode {
+        padding: 4px 7px;
+        font-size: 0.78rem;
+      }
+      .notice {
+        background: #202428;
+        border: 1px solid #34383c;
+        padding: 12px;
+        border-radius: 9px;
+        margin-bottom: 14px;
+        color: #cbd2d8;
+      }
+      .error {
+        color: #ffb4a7;
+        white-space: pre-wrap;
+      }
+      #create-panel {
+        background: #1a1d20;
+        border: 1px solid #34383c;
+        border-radius: 12px;
+        padding: 16px;
+        margin: 14px 0;
+      }
+      dialog {
+        max-width: min(720px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px);
+        padding: 18px;
+        border: 1px solid #565d63;
+        border-radius: 12px;
+        background: #1a1d20;
+        color: #f1f3f5;
+      }
+      dialog::backdrop {
+        background: rgb(0 0 0 / 65%);
+      }
+      #preview-body {
+        white-space: pre-wrap;
+        font: inherit;
+        line-height: 1.45;
+      }
+      #preview-dialog {
+        width: 680px;
+        box-sizing: border-box;
+        overflow-y: auto;
+      }
+      #schedule-dialog {
+        width: min(760px, calc(100vw - 32px));
+      }
+      #schedule-result {
+        white-space: pre-wrap;
+        max-height: 240px;
+        overflow: auto;
+      }
+      .schedule-options {
+        display: grid;
+        gap: 12px;
+      }
+      .schedule-weekdays {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .draft-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 8px 0;
+        border-top: 1px solid #303438;
+      }
+      #post-editor {
+        display: grid;
+        gap: 12px;
+        margin: 16px 0;
+      }
+      #post-editor input:not([type='checkbox']),
+      #post-editor textarea {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      #preview-help {
+        margin: 10px 0;
+      }
+      .host-list {
+        display: grid;
+        gap: 8px;
+        margin: 14px 0;
+      }
+      #hosts-dialog {
+        width: min(700px, calc(100vw - 40px));
+      }
+      #hosts-dialog > p,
+      #people-add .actions {
+        margin: 10px 0;
+      }
+      .person-row {
+        border: 1px solid #565d63;
+        border-radius: 8px;
+        padding: 12px;
+        display: grid;
+        gap: 8px;
+      }
+      #people-username {
+        box-sizing: border-box;
+        width: 100%;
+      }
+      @media (max-width: 600px) {
+        main {
+          padding: 16px 10px 36px;
+        }
+        .series-head {
+          align-items: flex-start;
+        }
+      }
+      #public-view {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 680px;
+        height: 100dvh;
+        min-height: 0;
+        padding: 12px;
+        font-size: 0.875rem;
+        line-height: 1.35;
+      }
+      .public-screen {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #public-view h1 {
+        font-size: 1.2rem;
+        line-height: 1.2;
+      }
+      #public-view h2,
+      #public-view h3 {
+        font-size: 0.9rem;
+        line-height: 1.3;
+      }
+      .public-content {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-wrap: anywhere;
+        display: flex;
+        flex-direction: column;
+        gap: 9px;
+      }
+      .public-footer {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+      }
+      #public-view button {
+        min-height: 36px;
+        padding: 7px 12px;
+        font-size: 0.875rem;
+      }
+      #public-view .link-button {
+        min-height: 26px;
+        padding: 2px 0;
+        align-self: flex-start;
+        text-align: left;
+      }
+      .public-tools {
+        padding: 8px;
+        border: 1px solid #42494e;
+        border-radius: 10px;
+        display: grid;
+        gap: 5px;
+      }
+      .public-tools button {
+        justify-self: start;
+      }
+      .public-access {
+        border-top: 1px solid #34383c;
+        padding-top: 8px;
+        display: grid;
+        gap: 4px;
+        color: #c0c7cc;
+      }
+      .public-compact-copy {
+        display: none;
+      }
+      [data-public-screen='home'] .public-content {
+        gap: 7px;
+      }
+      .public-privacy,
+      .public-muted {
+        color: #bfc7cd;
+        font-size: 0.8rem;
+      }
+      .calculator-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px 10px;
+      }
+      .measurement-group {
+        display: grid;
+        gap: 4px;
+        min-width: 0;
+      }
+      .split-measurement {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 6px;
+      }
+      .activity-field {
+        grid-column: 1 / -1;
+      }
+      .public-footer-tools {
+        display: flex;
+        justify-content: flex-end;
+        gap: 6px;
+        margin-left: auto;
+      }
+      .flair-field {
+        min-width: 0;
+        margin: 0;
+        padding: 6px;
+        border: 1px solid #454d53;
+        border-radius: 6px;
+      }
+      .flair-field legend {
+        font-size: 0.8rem;
+      }
+      .flair-preview {
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 450px) {
+        [data-public-screen='inputs'] .public-footer {
+          flex-wrap: wrap;
+        }
+        .public-footer-tools {
+          flex-shrink: 0;
+        }
+      }
+      .calculator-help-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      [data-public-screen='inputs'] .public-footer {
+        justify-content: space-between;
+      }
+      #public-view label {
+        min-width: 0;
+        gap: 3px;
+        font-size: 0.8rem;
+      }
+      #public-view input,
+      #public-view select {
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        min-height: 36px;
+        padding: 6px;
+        font-size: 1rem;
+      }
+      #activity-description {
+        margin-top: 8px;
+        min-height: 2.7em;
+      }
+      .imperial-height {
+        min-width: 0;
+        padding: 0;
+        margin: 0;
+        border: 0;
+      }
+      .imperial-height legend {
+        font-size: 0.8rem;
+        color: #cdd2d7;
+      }
+      .imperial-height > div {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+      }
+      #public-view .imperial-height label {
+        font-size: 0.75rem;
+      }
+      #public-view .field-error {
+        color: #ffb4a7;
+        font-size: 0.75rem;
+      }
+      #public-view [aria-invalid='true'] {
+        border-color: #ffb4a7;
+      }
+      .calculator-result {
+        padding: 12px 0;
+        display: grid;
+        gap: 5px;
+      }
+      #public-view .result-value {
+        font-size: 2rem;
+        font-weight: 650;
+        color: inherit;
+      }
+      #public-view .result-value span {
+        font-size: 1rem;
+        font-weight: 400;
+      }
+      .calculation-help {
+        display: grid;
+        gap: 10px;
+      }
+      .calculation-help nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+      }
+      .help-tabs {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      #public-view .help-tabs button {
+        font-size: 0.75rem;
+        padding: 5px 7px;
+      }
+      #public-view .help-tabs [aria-pressed='true'] {
+        border-color: #96c8ff;
+      }
+      #public-view button:focus-visible,
+      #public-view input:focus-visible,
+      #public-view select:focus-visible {
+        outline: 2px solid #96c8ff;
+        outline-offset: 2px;
+      }
+      @media (max-height: 440px) {
+        .public-full-copy {
+          display: none;
+        }
+        .public-compact-copy {
+          display: inline;
+        }
+        [data-public-screen='home'] .public-content {
+          gap: 4px;
+        }
+        #public-view {
+          padding: 8px 10px;
+          font-size: 0.8rem;
+          line-height: 1.25;
+        }
+        .public-screen,
+        .public-content {
+          gap: 6px;
+        }
+        .public-tools {
+          padding: 6px 8px;
+          gap: 3px;
+        }
+        .public-access {
+          padding-top: 6px;
+          gap: 3px;
+        }
+        #public-view h1 {
+          font-size: 1.1rem;
+        }
+        .calculator-grid {
+          gap: 4px 10px;
+        }
+        .unit-label {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+        }
+        #public-view button {
+          min-height: 34px;
+          padding: 5px 9px;
+        }
+        #public-view .link-button {
+          min-height: 24px;
+          padding: 1px 0;
+        }
+        .calculator-result {
+          padding: 5px 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="public-view" aria-label="Community tools">
+      <h1>Check-In Crew</h1>
+      <p role="status">Checking access…</p>
+    </main>
+    <main id="management-view" hidden inert>
+      <header>
+        <div>
+          <h1>Check-In Crew</h1>
+          <p class="muted">
+            Monthly series, recurring posts and volunteer hosts
+          </p>
+        </div>
+        <div class="actions">
+          <button id="public-home" class="secondary">Community tools</button
+          ><button id="refresh" class="secondary">Refresh</button>
+        </div>
+      </header>
+      <div class="toolbar">
+        <div class="month-picker">
+          <strong>View month</strong>
+          <div class="actions">
+            <label
+              >Month<select
+                id="view-month"
+                aria-describedby="month-help"
+              ></select></label
+            ><label
+              >Year<select
+                id="view-year"
+                aria-describedby="month-help"
+              ></select></label
+            ><button class="secondary" id="this-month">This month</button>
+          </div>
+          <p class="muted" id="month-help">
+            Choose the month to view monthly-series posts and posting history.
+            Simple recurring posts always show their next upcoming posts.
+          </p>
+        </div>
+      </div>
+      <div id="message" class="notice">Loading schedule…</div>
+      <div id="series-actions" class="actions">
+        <div id="admin-tools"></div>
+        <div id="bulk-actions" class="actions">
+          <button id="pause-selected" class="danger">Pause selected</button>
+          <button id="resume-selected">Resume selected</button>
+        </div>
+      </div>
+      <p id="series-capacity" class="muted" hidden></p>
+      <div id="series-views" class="actions" hidden></div>
+      <section id="create-panel" data-edit-group="create" hidden>
+        <h2>Create a series</h2>
+        <p class="muted" style="margin: 6px 0 14px">
+          New series start paused. Add maintainers after saving.
+        </p>
+        <div class="settings">
+          <label class="type-choice"
+            >Series type<select id="create-series-type">
+              <option value="accountability">Monthly series</option>
+              <option value="simple">Simple recurring posts</option></select
+            ><span class="muted" id="create-type-help" aria-live="polite"></span
+          ></label>
+          <label
+            >Display name<input id="create-label" placeholder="Weekend Group"
+          /></label>
+          <label
+            >Repeat<select id="create-frequency">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="other">
+                Other — choose schedule after creation
+              </option>
+            </select></label
+          >
+          <label
+            >Weekly posting day<select id="create-weekday">
+              <option value="0">Sunday</option>
+              <option value="1" selected>Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+            </select></label
+          >
+          <label
+            >Timezone<input id="create-timezone" value="Europe/London"
+          /></label>
+          <label>Posting time<input id="create-time" value="08:00" /></label>
+          <label
+            >Start post<select id="create-signup">
+              <option value="none">Not stickied</option>
+              <option value="slot1">Sticky slot 1</option>
+              <option value="slot2">Sticky slot 2</option>
+            </select></label
+          >
+          <label
+            ><span id="create-post-label">Daily check-in</span
+            ><select id="create-daily">
+              <option value="none">Not stickied</option>
+              <option value="slot1">Sticky slot 1</option>
+              <option value="slot2">Sticky slot 2</option>
+            </select></label
+          >
+          <label
+            >Finish post<select id="create-roundup">
+              <option value="none">Not stickied</option>
+              <option value="slot1">Sticky slot 1</option>
+              <option value="slot2">Sticky slot 2</option>
+            </select></label
+          >
+          <button id="create-submit">Create series</button>
+          <button id="create-cancel" class="secondary">Cancel</button>
+        </div>
+      </section>
+      <section id="app"></section>
+      <div id="privacy-tools" hidden></div>
+    </main>
+    <dialog id="preview-dialog">
+      <h2 id="preview-heading">Post preview</h2>
+      <p id="preview-help" class="muted"></p>
+      <p id="preview-error" class="notice" role="status" hidden></p>
+      <div id="post-editor" hidden>
+        <label class="checkbox-label"
+          ><input id="post-title-default" type="checkbox" /> Use series default
+          title</label
+        >
+        <label id="post-title-field"
+          >Title for this post<input id="post-title" maxlength="300"
+        /></label>
+        <label class="checkbox-label"
+          ><input id="post-body-default" type="checkbox" /> Use series default
+          body</label
+        >
+        <label id="post-body-field"
+          >Body for this post<textarea
+            id="post-body"
+            rows="10"
+            maxlength="12000"
+          ></textarea>
+        </label>
+        <p class="muted">
+          You can keep placeholders such as {host_credit}, {month}, {day},
+          {series}, {signup_link}, and {previous_link}. Host credits and links
+          are filled in when posting.
+        </p>
+        <div class="actions">
+          <button id="post-render" class="secondary">Update preview</button>
+          <button id="post-save">Save for this post</button>
+          <button id="post-reset" class="secondary">
+            Reset to series defaults
+          </button>
+        </div>
+      </div>
+      <h3 id="preview-title"></h3>
+      <pre id="preview-body"></pre>
+      <button id="preview-close" class="secondary">Close</button>
+    </dialog>
+    <dialog id="hosts-dialog">
+      <h2 id="hosts-title"></h2>
+      <p id="hosts-help" class="muted"></p>
+      <p>
+        <strong>Host:</strong> credited publicly in posts.
+        <strong>Maintainer:</strong> can manage this series. A person can have
+        either role or both.
+      </p>
+      <div id="people-add">
+        <label for="people-username">Reddit username</label>
+        <input
+          id="people-username"
+          autocomplete="off"
+          placeholder="username or u/username"
+          maxlength="22"
+        />
+        <div class="actions">
+          <button type="button" id="people-add-host">Add as host</button>
+          <button type="button" id="people-add-maintainer" class="secondary">
+            Add as maintainer
+          </button>
+        </div>
+      </div>
+      <div id="hosts-list" class="host-list"></div>
+      <p id="people-status" role="status"></p>
+      <div class="actions">
+        <button id="save-hosts">Save people &amp; access</button>
+        <button id="people-close" class="secondary">Close</button>
+      </div>
+    </dialog>
+    <dialog id="schedule-dialog">
+      <h2 id="schedule-title">Change schedule</h2>
+      <p class="muted">
+        Published posts stay in history. The new schedule starts at the selected
+        date and time.
+      </p>
+      <p id="schedule-error" class="notice error" hidden></p>
+      <div class="schedule-options">
+        <label>Timezone<input id="schedule-timezone" /></label>
+        <label
+          >First post<input id="schedule-start" type="datetime-local"
+        /></label>
+        <label
+          >Pattern<select id="schedule-frequency">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="other">Other</option>
+          </select></label
+        >
+        <label id="schedule-unit-field"
+          >Repeat pattern<select id="schedule-unit">
+            <option value="days">Every X days</option>
+            <option value="weeks">Every X weeks, on selected weekdays</option>
+            <option value="months">Every X months, on day X</option>
+            <option value="months-last">Last day of the month</option>
+            <option value="months-weekday">
+              First / second / third / fourth / last weekday of the month
+            </option>
+            <option value="hours">Every X hours</option>
+          </select></label
+        >
+        <p id="schedule-pattern-help" class="muted"></p>
+        <label id="schedule-interval-field"
+          ><span id="schedule-interval-label">Repeat every (days)</span
+          ><input
+            id="schedule-interval"
+            type="number"
+            min="1"
+            max="120"
+            value="1"
+        /></label>
+        <label id="schedule-weekday-field"
+          >Posting day<select id="schedule-weekday">
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select></label
+        >
+        <div id="schedule-weekdays-field">
+          <span>Posting days</span>
+          <div class="schedule-weekdays">
+            <label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="0" />
+              Sunday</label
+            ><label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="1" />
+              Monday</label
+            ><label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="2" />
+              Tuesday</label
+            ><label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="3" />
+              Wednesday</label
+            ><label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="4" />
+              Thursday</label
+            ><label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="5" />
+              Friday</label
+            ><label class="checkbox-label"
+              ><input type="checkbox" data-schedule-weekday value="6" />
+              Saturday</label
+            >
+          </div>
+        </div>
+        <div id="schedule-month-options">
+          <input id="schedule-month-mode" type="hidden" value="day" />
+          <label id="schedule-month-day-field"
+            >Day number<input
+              id="schedule-month-day"
+              type="number"
+              min="1"
+              max="31"
+              value="1" /></label
+          ><label id="schedule-month-weekday-field"
+            >Position<select id="schedule-ordinal">
+              <option value="1">First</option>
+              <option value="2">Second</option>
+              <option value="3">Third</option>
+              <option value="4">Fourth</option>
+              <option value="-1">Last</option>
+            </select></label
+          ><label id="schedule-month-weekday-select-field"
+            >Weekday<select id="schedule-month-weekday">
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+            </select></label
+          ><label id="schedule-short-month-field"
+            >Short months<select id="schedule-short-month">
+              <option value="skip">Skip if the day does not exist</option>
+              <option value="last">Use the last day instead</option>
+            </select></label
+          >
+        </div>
+        <p id="schedule-hours-note" class="notice">
+          Hourly schedules are controlled by the app setting and should be
+          reserved for clear event-based uses.
+        </p>
+        <label
+          >End<select id="schedule-end">
+            <option value="pause">Until paused</option>
+            <option value="date">On a date</option>
+            <option value="count">After a number of posts</option>
+          </select></label
+        ><label id="schedule-end-date-field"
+          >End date<input id="schedule-end-date" type="date" /></label
+        ><label id="schedule-max-posts-field"
+          >Maximum posts<input
+            id="schedule-max-posts"
+            type="number"
+            min="1"
+            max="10000"
+            value="5"
+        /></label>
+        <pre id="schedule-result" class="notice" hidden></pre>
+      </div>
+      <div class="actions">
+        <button id="schedule-preview" class="secondary">Preview schedule</button
+        ><button id="schedule-save">Apply schedule</button>
+        <form method="dialog"><button class="secondary">Cancel</button></form>
+      </div>
+    </dialog>
+    <script type="module" src="./dashboard.js"></script>
+  </body>
+</html>

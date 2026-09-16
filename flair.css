@@ -1,0 +1,162 @@
+:root {
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  color: #edf0f2;
+  background: #0e1113;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  overflow: auto;
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+#public-view {
+  min-height: 100dvh;
+  max-width: 760px;
+  margin: auto;
+  padding: 16px;
+}
+.public-screen {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 100dvh;
+  gap: 8px;
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 1.4rem;
+}
+h2 {
+  font-size: 1rem;
+}
+.public-content {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.public-content > * {
+  flex-shrink: 0;
+}
+.public-footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 4px;
+}
+button {
+  border: 1px solid #3986c9;
+  border-radius: 6px;
+  background: #286dad;
+  color: #fff;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 42px;
+}
+button.secondary {
+  background: #23292d;
+  border-color: #58636b;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+input,
+select {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px;
+  border: 1px solid #58636b;
+  border-radius: 6px;
+  background: #111416;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.calculator-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+.flair-field {
+  min-width: 0;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid #454d53;
+  border-radius: 6px;
+}
+.flair-field legend {
+  font-size: 0.78rem;
+}
+.flair-units {
+  margin-bottom: 3px;
+}
+.split-measurement {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+.public-muted {
+  color: #bbc4cb;
+  font-size: 0.875rem;
+}
+.flair-preview {
+  overflow-wrap: anywhere;
+  padding: 10px;
+  background: #20262a;
+  border-radius: 6px;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #86c7ff;
+  outline-offset: 2px;
+}
+@media (max-width: 380px) {
+  #public-view {
+    padding: 10px;
+  }
+  .public-content {
+    gap: 5px;
+  }
+  .calculator-grid {
+    gap: 4px;
+  }
+  .flair-field {
+    padding: 3px;
+  }
+  label {
+    font-size: 0.75rem;
+  }
+  input,
+  select {
+    min-height: 32px;
+    padding: 4px;
+    font-size: 0.875rem;
+  }
+}

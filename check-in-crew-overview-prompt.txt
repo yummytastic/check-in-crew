@@ -1,0 +1,53 @@
+Use case: infographic-diagram.
+Create a polished, shareable portrait infographic explaining the Reddit app Check-In Crew to volunteer hosts and subreddit moderators. This is a new standalone infographic, not a screenshot or UI mockup. Use a spacious high-resolution portrait poster, approximately 2:3 aspect ratio. Crisp modern sans-serif typography, strong contrast, clean light background with dark charcoal text and restrained blue accents consistent with the app's blue buttons. Friendly, professional, community-focused, with simple calendar, conversation, pencil, people, pause and settings illustrations. No Reddit mascot, no invented logos, no photographs, no watermark. Large readable type; prioritize the exact copy below over decorative imagery. Give the host/access explanation prominent visual space.
+
+Layout: large heading and introduction; two parallel scheduling cards; a full-width customisation strip; a prominent people/roles section with two distinct roles side by side; a compact moderator controls row; two separate optional community tool cards; small closing line. Keep logical reading order, generous spacing, and all text legible. Do not add claims, dates, ratings, statistics, QR codes or URLs. Render this exact copy, preserving spelling and punctuation:
+
+TITLE
+"Check-In Crew"
+"Scheduled posts with a community behind them"
+
+INTRO
+"Automate the posting. Keep people at the heart of the conversation."
+
+SCHEDULING CARDS
+"Monthly series"
+"Start and finish posts, plus daily check-ins throughout the month."
+"Recurring posts"
+"Daily, weekly or custom schedules — including the last day of the month."
+Beneath both cards:
+"Run several series together, each with its own schedule and timezone."
+
+CUSTOMISATION STRIP
+"Plan ahead. Make each post your own."
+"Start from reusable titles and body templates. Preview and edit individual upcoming posts for holidays, prompts or special events."
+
+PROMINENT PEOPLE SECTION
+"Community hosts stay visible"
+"Hosts"
+"One or more usernames credited in the posts. Host credit alone does not grant editing access."
+"Maintainers"
+"Trusted volunteers can manage assigned series without becoming moderators."
+"Someone can be both a host and a maintainer."
+
+MODERATOR CONTROLS
+"Stay in control"
+"Pause or resume • Choose sticky placement • Review posting history • Archive old series"
+
+OPTIONAL COMMUNITY TOOLS
+"Optional tools for members"
+"Calorie needs & BMI"
+"Maintenance estimate, mixed units and a neutral BMI result. Calculator details stay on the device."
+"Set your flair"
+"Choose a community-defined format, preview your details and apply your own public flair."
+Small note underneath the two cards:
+"Flair is separate from the calculator. Moderators choose which tools are enabled."
+
+CLOSING
+"Members take part by commenting on the community’s threads."
+"Currently being tested in r/loseit_test"
+
+Accuracy constraints: Scheduled posting is automatic; hosts are credited humans, not the author account. Assigned maintainer access is separate from host credit. Do not imply the app posts under a volunteer's account. The calculator does not save measurements, but applying flair sends chosen details to Reddit as public flair; never imply flair is private. Do not show BMI or calories as flair components. This is a feature overview, not medical advice or an instruction manual.
+
+Final revision (built-in image generation edit):
+Edit the attached Check-In Crew infographic. Preserve its exact layout, feature cards, illustrations, dimensions and all wording. Correct the background/contrast: replace ALL dark navy/black gradient areas and ALL smoky shadows, especially across the top header, between sections and bottom footer, with a uniform very light off-white / pale blue background. No dark gradients, no vignette, no fog or large shadows anywhere. Make the main title 'Check-In Crew' clearly visible in large solid dark navy lettering against the light background. Keep all other text dark and readable. The bottom closing lines must also be clearly readable: 'Members take part by commenting on the community’s threads.' and 'Currently being tested in r/loseit_test'. Fix the typo in the Set your flair card: it must read 'Choose a community-defined format, preview your details and apply your own public flair.' (format spelled f-o-r-m-a-t). Preserve everything else. Crisp flat light infographic, strong accessible contrast throughout.

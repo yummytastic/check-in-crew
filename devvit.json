@@ -1,0 +1,787 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "check-in-crew",
+  "dev": {
+    "subreddit": "loseit_test"
+  },
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "post": {
+    "dir": "dist/client",
+    "entrypoints": {
+      "default": {
+        "entry": "index.html",
+        "height": "tall"
+      },
+      "dashboard": {
+        "entry": "index.html",
+        "height": "tall"
+      },
+      "flair": {
+        "entry": "flair.html",
+        "height": "tall"
+      }
+    }
+  },
+  "settings": {
+    "subreddit": {
+      "gettingStarted": {
+        "type": "group",
+        "label": "Getting started",
+        "helpText": "Check-In Crew runs monthly accountability and community engagement threads, alongside simple recurring posts. Customise templates and individual upcoming posts while keeping automatic scheduled publishing. Assign volunteer hosts and give trusted community members access to manage their series. Open the subreddit menu → Open Check-In Crew dashboard → Open dashboard to create series, manage hosts, and edit upcoming posts.",
+        "fields": {}
+      },
+      "general": {
+        "type": "group",
+        "label": "General",
+        "helpText": "Shared options for all series. Pause or resume automatic posting from the dashboard.",
+        "fields": {
+          "maxSeries": {
+            "type": "number",
+            "label": "Maximum series",
+            "helpText": "Maximum current series in this community (1–60; default 10). Paused series count; archived series do not. Higher limits can slow the dashboard and increase scheduled posting work, especially with hourly schedules or large preview windows. Lowering the limit does not remove or pause existing series; creation and restoration require a free slot.",
+            "defaultValue": 10,
+            "validationEndpoint": "/internal/settings/series-limit"
+          },
+          "allowManualPosting": {
+            "type": "boolean",
+            "label": "Allow Post now (testing or early publishing)",
+            "helpText": "Shows Post now beside unposted topics. It creates a real post immediately, even while paused, and prevents the scheduler from posting that topic again. Turning this off hides Post now; automatic posting continues.",
+            "defaultValue": false
+          },
+          "showCrewFooter": {
+            "type": "boolean",
+            "label": "Show app footer",
+            "helpText": "Adds “Scheduled with Check-In Crew.” at the end of posts.",
+            "defaultValue": true
+          },
+          "defaultCommunityNote": {
+            "type": "paragraph",
+            "label": "Default community note",
+            "helpText": "Inserted wherever a post body includes {community_note}. Edit this message for your community, or leave it blank to omit it. The current message is filled in when a post is published.",
+            "defaultValue": "Be kind to yourself and each other. Participation is voluntary; share only what you feel comfortable sharing."
+          },
+          "allowHourlySchedules": {
+            "type": "boolean",
+            "label": "Allow hourly schedules",
+            "helpText": "Allows Other schedules to repeat every 1–120 hours. Leave off unless the community has a clear event-based use for frequent posts. Hourly schedules remain subject to Reddit's spam rules.",
+            "defaultValue": false
+          }
+        }
+      },
+      "monthly": {
+        "type": "group",
+        "label": "Monthly series",
+        "helpText": "A start post, daily check-ins, and a finish post each calendar month. Changes apply to upcoming posts using these defaults. Customised series and individual posts keep their overrides.",
+        "fields": {
+          "defaultMonthlyHostCredit": {
+            "type": "string",
+            "label": "Default host credit",
+            "helpText": "Used by {host_credit_monthly} in monthly templates. Use {hosts} for usernames, {series} for the display name, and {month} for the month and year. A custom monthly-series format overrides this.",
+            "defaultValue": "Hosted by {hosts}."
+          },
+          "defaultSignupTitle": {
+            "type": "string",
+            "label": "Start (signup) — default title",
+            "helpText": "Shortcodes: {series} (display name), {weekday} (Monday), {day} (day number), {date} (YYYY-MM-DD), {month} (month and year).",
+            "defaultValue": "30 Day Accountability Challenge — {series} — {month} Sign Ups"
+          },
+          "defaultSignupTemplate": {
+            "type": "paragraph",
+            "label": "Start (signup) — default post body",
+            "helpText": "Supports title shortcodes plus {host_credit_monthly}, {community_note}, {signup_link} and {previous_link}.",
+            "defaultValue": "{host_credit_monthly}\n\nWelcome to the {month} accountability check-in. Share what you would like to work on this month, and join in at any point.\n\n{community_note}"
+          },
+          "defaultDailyTitle": {
+            "type": "string",
+            "label": "Daily check-in — default title",
+            "helpText": "Shortcodes: {series} (display name), {weekday} (Monday), {day} (day number), {date} (YYYY-MM-DD), {month} (month and year).",
+            "defaultValue": "30 Day Accountability Challenge — {series} — Day {day} {month}"
+          },
+          "defaultDailyTemplate": {
+            "type": "paragraph",
+            "label": "Daily check-in — default post body",
+            "helpText": "Supports title shortcodes plus {host_credit_monthly}, {community_note}, {signup_link} and {previous_link}.",
+            "defaultValue": "{host_credit_monthly}\n\nHow is your accountability going today? Share a progress update, a challenge, or a small win.\n\n{community_note}\n\n{signup_link}\n{previous_link}"
+          },
+          "defaultRoundupTitle": {
+            "type": "string",
+            "label": "Finish (wrap-up) — default title",
+            "helpText": "Shortcodes: {series} (display name), {weekday} (Monday), {day} (day number), {date} (YYYY-MM-DD), {month} (month and year).",
+            "defaultValue": "30 Day Accountability Challenge — {series} — Day {day} {month} Wrap Ups"
+          },
+          "defaultRoundupTemplate": {
+            "type": "paragraph",
+            "label": "Finish (wrap-up) — default post body",
+            "helpText": "Supports title shortcodes plus {host_credit_monthly}, {community_note}, {signup_link} and {previous_link}.",
+            "defaultValue": "{host_credit_monthly}\n\nAs the month closes, what went well, what did you learn, and what would you like to carry forward?\n\n{community_note}\n\n{signup_link}\n{previous_link}"
+          }
+        }
+      },
+      "simple": {
+        "type": "group",
+        "label": "Simple recurring posts",
+        "helpText": "One post template repeated daily, weekly, or on a custom Other schedule. Changes apply to upcoming posts using these defaults. Customised series and individual posts keep their overrides.",
+        "fields": {
+          "defaultSimpleDailyTitle": {
+            "type": "string",
+            "label": "Daily — default title",
+            "helpText": "Shortcodes: {series} (display name), {weekday} (Monday), {day} (day number), {date} (YYYY-MM-DD), {month} (month and year). Also supports {frequency} (Daily or Weekly).",
+            "defaultValue": "Daily {series} — {weekday} {date}"
+          },
+          "defaultSimpleWeeklyTitle": {
+            "type": "string",
+            "label": "Weekly — default title",
+            "helpText": "Shortcodes: {series} (display name), {weekday} (Monday), {day} (day number), {date} (YYYY-MM-DD), {month} (month and year). Also supports {frequency} (Daily or Weekly).",
+            "defaultValue": "Weekly {series} — {weekday} {date}"
+          },
+          "defaultSimpleOtherTitle": {
+            "type": "string",
+            "label": "Other — default title",
+            "helpText": "Default title for custom repeat schedules. Supports {series}, {weekday}, {day}, {date}, {time}, {month} and {frequency}.",
+            "defaultValue": "{series} — {weekday} {date}"
+          },
+          "defaultSimpleTemplate": {
+            "type": "paragraph",
+            "label": "Default post body",
+            "helpText": "Supports title shortcodes plus {frequency} (Daily, Weekly or Recurring), {host_credit_simple}, {community_note} and {previous_link}.",
+            "defaultValue": "Share an update, a question, or something you are working on.\n\n{community_note}"
+          },
+          "defaultSimpleHostCredit": {
+            "type": "string",
+            "label": "Default host credit when included",
+            "helpText": "Used by {host_credit_simple}. Simple series hide host credits by default; this format is used only when a series enables Include host credit. Use {hosts}, {series}, and {month}.",
+            "defaultValue": "Hosted by {hosts}."
+          },
+          "dailyPostsAhead": {
+            "type": "number",
+            "label": "Daily posts shown ahead",
+            "helpText": "Upcoming posts shown for each daily series (1–60; initially 15). The window rolls forward across months. It does not limit automatic posting or remove saved edits.",
+            "defaultValue": 15,
+            "validationEndpoint": "/internal/settings/preview-count"
+          },
+          "weeklyPostsAhead": {
+            "type": "number",
+            "label": "Weekly posts shown ahead",
+            "helpText": "Upcoming posts shown for each weekly series (1–60; initially 5). The window rolls forward across months. It does not limit automatic posting or remove saved edits.",
+            "defaultValue": 5,
+            "validationEndpoint": "/internal/settings/preview-count"
+          },
+          "otherPostsAhead": {
+            "type": "number",
+            "label": "Other posts shown ahead",
+            "helpText": "Upcoming posts shown for each Other schedule (1–60; initially 5). This only changes the dashboard window, not automatic posting or saved edits.",
+            "defaultValue": 5,
+            "validationEndpoint": "/internal/settings/preview-count"
+          }
+        }
+      },
+      "dangerZone": {
+        "type": "group",
+        "label": "Danger zone",
+        "helpText": "Deletion is permanent and intended for exceptional cases. Archiving is the normal way to retire a series. Deleting posts does not delete their comments.",
+        "fields": {
+          "allowMaintainerDeletion": {
+            "type": "boolean",
+            "label": "Allow maintainers to delete individual posts",
+            "defaultValue": false,
+            "helpText": "Off by default. When enabled, assigned maintainers can permanently delete posts created by this app in their own series, after typing DELETE. Moderators always have access. Bulk deletion remains moderator-only."
+          },
+          "bulkDeleteCooldownDays": {
+            "type": "number",
+            "label": "Bulk post deletion cooldown (days)",
+            "defaultValue": 7,
+            "validationEndpoint": "/internal/settings/deletion-cooldown",
+            "helpText": "1–30 days; default 7, minimum 24 hours. Applies only when a moderator explicitly chooses to delete a series AND its published posts. Cancellation is available before the deadline. Changing this setting does not alter existing countdowns."
+          }
+        }
+      },
+      "communityTools": {
+        "type": "group",
+        "label": "Community tools",
+        "helpText": "Optional tools available to visitors without management access.",
+        "fields": {
+          "enableCommunityCalculator": {
+            "type": "boolean",
+            "label": "Enable calorie needs and BMI calculator",
+            "defaultValue": false,
+            "helpText": "Shows an adult maintenance-calorie estimate and neutral BMI number in the public view. Measurements and results stay in memory on the device; they are not sent to the app server or saved. Off by default for communities that do not need weight-related tools."
+          },
+          "enableUserFlair": {
+            "type": "boolean",
+            "label": "Enable Set flair",
+            "defaultValue": true,
+            "helpText": "Lets signed-in members preview and apply their own public flair using the formats below. Separate from the calculator; no calculator inputs are copied. It cannot operate while user flair is disabled in Reddit’s community settings."
+          },
+          "allowBotFlairAssignment": {
+            "type": "boolean",
+            "label": "Allow Set flair when Reddit self-assignment is off",
+            "defaultValue": false,
+            "helpText": "Off by default. Enable only if this community intentionally wants members to receive flair through Check-In Crew while Reddit’s normal ‘allow users to assign and edit’ setting is off. This cannot override Reddit’s separate ‘enable user flair’ setting, and moderator-only templates are never used."
+          },
+          "allowReplacingExistingFlair": {
+            "type": "boolean",
+            "label": "Allow Set flair to replace existing flair",
+            "defaultValue": false,
+            "helpText": "Off by default. Check-In Crew protects all existing flair because Reddit’s public API does not identify the current flair template. Enable only if moderators have confirmed that replacing members’ existing flair is appropriate. Moderator-only flair with the same exact template text remains protected."
+          }
+        }
+      },
+      "flairBehaviour": {
+        "type": "group",
+        "label": "User flair — Reddit template",
+        "helpText": "Formats below control the wording. The Reddit template controls appearance. Changes apply only when a member explicitly selects Apply. When self-assignment is enabled in Reddit, choose a member-editable template; when bot assignment is enabled above, a non-moderator text template can be used.",
+        "fields": {
+          "userFlairTemplate": {
+            "type": "string",
+            "label": "Reddit user flair template ID (optional)",
+            "defaultValue": "",
+            "helpText": "Leave blank to use the first suitable non-moderator text template. Otherwise paste its ID from Reddit user flair settings. Moderator-only and emoji-only templates cannot be used."
+          }
+        }
+      },
+      "flair1Settings": {
+        "type": "group",
+        "label": "Flair field 1",
+        "helpText": "Use {flair1} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair1Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Age"
+          },
+          "flair1Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "number",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair1Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair1Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair2Settings": {
+        "type": "group",
+        "label": "Flair field 2",
+        "helpText": "Use {flair2} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair2Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Gender"
+          },
+          "flair2Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "text",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair2Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair2Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair3Settings": {
+        "type": "group",
+        "label": "Flair field 3",
+        "helpText": "Use {flair3} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair3Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Starting weight"
+          },
+          "flair3Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "weight",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair3Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair3Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair4Settings": {
+        "type": "group",
+        "label": "Flair field 4",
+        "helpText": "Use {flair4} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair4Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Current weight"
+          },
+          "flair4Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "weight",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair4Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair4Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair5Settings": {
+        "type": "group",
+        "label": "Flair field 5",
+        "helpText": "Use {flair5} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair5Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Goal weight"
+          },
+          "flair5Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "weight",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair5Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair5Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair6Settings": {
+        "type": "group",
+        "label": "Flair field 6",
+        "helpText": "Use {flair6} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair6Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Height"
+          },
+          "flair6Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "height",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair6Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair6Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair7Settings": {
+        "type": "group",
+        "label": "Flair field 7",
+        "helpText": "Use {flair7} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair7Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": "Personal text"
+          },
+          "flair7Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "text",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair7Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair7Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flair8Settings": {
+        "type": "group",
+        "label": "Flair field 8",
+        "helpText": "Use {flair8} in formats. Members see the label below, and only see fields used by their selected format. Blank label or Disabled hides this field.",
+        "fields": {
+          "flair8Label": {
+            "type": "string",
+            "label": "Label",
+            "defaultValue": ""
+          },
+          "flair8Type": {
+            "type": "select",
+            "label": "Input type",
+            "defaultValue": "disabled",
+            "options": [
+              {
+                "label": "Disabled",
+                "value": "disabled"
+              },
+              {
+                "label": "Short text",
+                "value": "text"
+              },
+              {
+                "label": "Whole number",
+                "value": "number"
+              },
+              {
+                "label": "Weight (kg, lb, stone/pounds)",
+                "value": "weight"
+              },
+              {
+                "label": "Height (cm, feet/inches)",
+                "value": "height"
+              }
+            ]
+          },
+          "flair8Help": {
+            "type": "string",
+            "label": "Help text (optional)",
+            "defaultValue": ""
+          },
+          "flair8Required": {
+            "type": "boolean",
+            "label": "Required when used in a format",
+            "defaultValue": false
+          }
+        }
+      },
+      "flairFormat1": {
+        "type": "group",
+        "label": "Flair format 1",
+        "helpText": "Default example: 35F | 165cm | SW:90kg CW:75kg GW:65kg. Use {flair1}–{flair8} to insert the fields above. Weight/height include units. Optional empty fields and attached labels such as SW: are omitted. Final flair must fit 64 characters.",
+        "fields": {
+          "flairFormat1Name": {
+            "type": "string",
+            "label": "Name shown to members (blank disables)",
+            "defaultValue": "Full stats"
+          },
+          "flairFormat1Text": {
+            "type": "string",
+            "label": "Format",
+            "defaultValue": "{flair1}{flair2} | {flair6} | SW:{flair3} CW:{flair4} GW:{flair5}",
+            "validationEndpoint": "/internal/settings/flair-format"
+          }
+        }
+      },
+      "flairFormat2": {
+        "type": "group",
+        "label": "Flair format 2",
+        "helpText": "Default example: SW:90kg | CW:75kg | GW:65kg. Use {flair1}–{flair8} to insert the fields above. Weight/height include units. Optional empty fields and attached labels such as SW: are omitted. Final flair must fit 64 characters.",
+        "fields": {
+          "flairFormat2Name": {
+            "type": "string",
+            "label": "Name shown to members (blank disables)",
+            "defaultValue": "Weight stats"
+          },
+          "flairFormat2Text": {
+            "type": "string",
+            "label": "Format",
+            "defaultValue": "SW:{flair3} | CW:{flair4} | GW:{flair5}",
+            "validationEndpoint": "/internal/settings/flair-format"
+          }
+        }
+      },
+      "flairFormat3": {
+        "type": "group",
+        "label": "Flair format 3",
+        "helpText": "Default example: 90kg → 75kg. Use {flair1}–{flair8} to insert the fields above. Weight/height include units. Optional empty fields and attached labels such as SW: are omitted. Final flair must fit 64 characters.",
+        "fields": {
+          "flairFormat3Name": {
+            "type": "string",
+            "label": "Name shown to members (blank disables)",
+            "defaultValue": "Starting → current"
+          },
+          "flairFormat3Text": {
+            "type": "string",
+            "label": "Format",
+            "defaultValue": "{flair3} → {flair4}",
+            "validationEndpoint": "/internal/settings/flair-format"
+          }
+        }
+      },
+      "flairFormat4": {
+        "type": "group",
+        "label": "Flair format 4",
+        "helpText": "Default example: 75kg → 65kg. Use {flair1}–{flair8} to insert the fields above. Weight/height include units. Optional empty fields and attached labels such as SW: are omitted. Final flair must fit 64 characters.",
+        "fields": {
+          "flairFormat4Name": {
+            "type": "string",
+            "label": "Name shown to members (blank disables)",
+            "defaultValue": "Current → goal"
+          },
+          "flairFormat4Text": {
+            "type": "string",
+            "label": "Format",
+            "defaultValue": "{flair4} → {flair5}",
+            "validationEndpoint": "/internal/settings/flair-format"
+          }
+        }
+      },
+      "flairFormat5": {
+        "type": "group",
+        "label": "Flair format 5",
+        "helpText": "Default example: Taking it one day at a time. Use {flair1}–{flair8} to insert the fields above. Weight/height include units. Optional empty fields and attached labels such as SW: are omitted. Final flair must fit 64 characters.",
+        "fields": {
+          "flairFormat5Name": {
+            "type": "string",
+            "label": "Name shown to members (blank disables)",
+            "defaultValue": "Personal text"
+          },
+          "flairFormat5Text": {
+            "type": "string",
+            "label": "Format",
+            "defaultValue": "{flair7}",
+            "validationEndpoint": "/internal/settings/flair-format"
+          }
+        }
+      }
+    }
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "Open Check-In Crew dashboard",
+        "description": "View and manage monthly series and recurring posts.",
+        "location": "subreddit",
+        "forUserType": "user",
+        "endpoint": "/internal/menu/dashboard"
+      },
+      {
+        "label": "Check-In Crew",
+        "description": "Access, publication history, recovery and emergency pausing. Open the dashboard for other controls.",
+        "location": "subreddit",
+        "forUserType": "user",
+        "endpoint": "/internal/menu/open"
+      }
+    ]
+  },
+  "forms": {
+    "choose": "/internal/form/choose",
+    "createType": "/internal/form/createType",
+    "createTiming": "/internal/form/createTiming",
+    "create": "/internal/form/create",
+    "settings": "/internal/form/settings",
+    "access": "/internal/form/access",
+    "hostMonth": "/internal/form/hostMonth",
+    "hosts": "/internal/form/hosts",
+    "preview": "/internal/form/preview",
+    "publish": "/internal/form/publish",
+    "history": "/internal/form/history",
+    "close": "/internal/form/close",
+    "resolve": "/internal/form/resolve",
+    "recoveryMonth": "/internal/form/recoveryMonth",
+    "emergencyPause": "/internal/form/emergencyPause"
+  },
+  "triggers": {
+    "onAppInstall": "/internal/triggers/on-app-install",
+    "onAppUpgrade": "/internal/triggers/on-app-upgrade"
+  },
+  "scheduler": {
+    "tasks": {
+      "crew-tick": {
+        "endpoint": "/internal/scheduler/tick",
+        "cron": "*/5 * * * *"
+      }
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "permissions": {
+    "reddit": {
+      "enable": true,
+      "scope": "moderator"
+    },
+    "redis": true
+  }
+}
