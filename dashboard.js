@@ -78,7 +78,11 @@ let state;
 let seriesView = 'current';
 let viewMode = getWebViewMode();
 const timezoneHelp =
-  '<a class="timezone-help" href="https://yummytastic.github.io/check-in-crew/timezones/" target="_blank" rel="noopener noreferrer">Find and copy an IANA timezone ↗</a>';
+  '<button type="button" class="timezone-help" data-timezone-picker>Find and copy an IANA timezone ↗</button>';
+function openTimezonePicker(event) {
+  event.preventDefault();
+  navigateTo('https://yummytastic.github.io/check-in-crew/timezones/');
+}
 const esc = (value) =>
   String(value ?? '').replace(
     /[&<>"']/g,
@@ -950,6 +954,9 @@ function render() {
   if (!state.series.length)
     app.innerHTML =
       '<p class="notice">No current series. Create a series or restore one from Archived series.</p>';
+  app
+    .querySelectorAll('[data-timezone-picker]')
+    .forEach((button) => button.addEventListener('click', openTimezonePicker));
   document.querySelectorAll('[data-archive]').forEach((button) =>
     button.addEventListener('click', async () => {
       if (
@@ -1650,6 +1657,9 @@ document
 document
   .querySelector('#schedule-save')
   .addEventListener('click', saveSchedule);
+document.querySelectorAll('[data-timezone-picker]').forEach((button) =>
+  button.addEventListener('click', openTimezonePicker)
+);
 syncCreateFields();
 syncScheduleFields();
 loadPublicOptions();
