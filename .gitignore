@@ -2,3 +2,13 @@ node_modules
 .DS_Store
 dist
 .env
+
+# Locally generated sharing and document-rendering artifacts
+check-in-crew-moderator-guide.docx
+check-in-crew-moderator-guide.pdf
+check-in-crew-overview-prompt.txt
+check-in-crew-overview.png
+moderator_infographic.png
+moderator_infographic.svg
+pdf_render/
+docx_render/
