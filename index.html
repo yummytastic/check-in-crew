@@ -184,6 +184,11 @@
         color: #cdd2d7;
         font-size: 0.82rem;
       }
+      .timezone-help {
+        color: #8fc7ff;
+        font-size: 0.78rem;
+        font-weight: 500;
+      }
       label.checkbox-label {
         display: inline-flex;
         align-items: center;
@@ -766,8 +771,14 @@
             </select></label
           >
           <label
-            >Timezone<input id="create-timezone" value="Europe/London"
-          /></label>
+            >Timezone<input id="create-timezone" value="Europe/London" /><a
+              class="timezone-help"
+              href="https://yummytastic.github.io/check-in-crew/timezones/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Find and copy an IANA timezone ↗</a
+            ></label
+          >
           <label>Posting time<input id="create-time" value="08:00" /></label>
           <label
             >Start post<select id="create-signup">
@@ -876,7 +887,15 @@
       </p>
       <p id="schedule-error" class="notice error" hidden></p>
       <div class="schedule-options">
-        <label>Timezone<input id="schedule-timezone" /></label>
+        <label
+          >Timezone<input id="schedule-timezone" /><a
+            class="timezone-help"
+            href="https://yummytastic.github.io/check-in-crew/timezones/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Find and copy an IANA timezone ↗</a
+          ></label
+        >
         <label
           >First post<input id="schedule-start" type="datetime-local"
         /></label>

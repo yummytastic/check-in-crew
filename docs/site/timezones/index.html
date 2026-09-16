@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Find an IANA timezone | Check-In Crew</title>
+    <style>
+      :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+      body { max-width: 48rem; margin: 3rem auto; padding: 0 1.25rem 3rem; font-size: 17px; line-height: 1.5; }
+      a { color: #0758b8; }
+      input { box-sizing: border-box; width: 100%; padding: .75rem; font: inherit; }
+      ul { padding: 0; list-style: none; }
+      li { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: .55rem 0; border-bottom: 1px solid #8885; }
+      code { overflow-wrap: anywhere; }
+      button { padding: .4rem .65rem; font: inherit; white-space: nowrap; cursor: pointer; }
+      #status { min-height: 1.5em; }
+      .muted { color: #666; }
+    </style>
+  </head>
+  <body>
+    <p><a href="../">← Check-In Crew policies</a></p>
+    <h1>Find an IANA timezone</h1>
+    <p>
+      Search for the named timezone used by Check-In Crew, then copy it into
+      the series settings. Named zones such as <code>Europe/London</code>
+      handle daylight-saving changes; do not use a fixed UTC offset.
+    </p>
+    <label for="query">Search by region, city, country, or identifier</label>
+    <input id="query" type="search" autofocus autocomplete="off" placeholder="e.g. London, New York, Australia" />
+    <p id="status" class="muted" aria-live="polite"></p>
+    <ul id="zones"></ul>
+    <p class="muted">
+      These are IANA time zone database identifiers supplied by your browser.
+      For background and the authoritative database, see the
+      <a href="https://www.iana.org/time-zones" target="_blank" rel="noopener noreferrer">IANA Time Zone Database</a>.
+    </p>
+    <script>
+      const fallback = ['Africa/Johannesburg','America/Anchorage','America/Argentina/Buenos_Aires','America/Chicago','America/Denver','America/Edmonton','America/Los_Angeles','America/Mexico_City','America/New_York','America/Phoenix','America/Sao_Paulo','America/Toronto','Asia/Bangkok','Asia/Dubai','Asia/Hong_Kong','Asia/Jakarta','Asia/Kolkata','Asia/Manila','Asia/Seoul','Asia/Shanghai','Asia/Singapore','Asia/Tokyo','Australia/Adelaide','Australia/Brisbane','Australia/Melbourne','Australia/Perth','Australia/Sydney','Europe/Amsterdam','Europe/Berlin','Europe/Dublin','Europe/Helsinki','Europe/Lisbon','Europe/London','Europe/Madrid','Europe/Paris','Europe/Rome','Europe/Stockholm','Europe/Warsaw','Pacific/Auckland','Pacific/Honolulu'];
+      const zones = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('timeZone') : fallback;
+      const query = document.querySelector('#query');
+      const list = document.querySelector('#zones');
+      const status = document.querySelector('#status');
+      function show() {
+        const term = query.value.trim().toLowerCase().replace(/\s+/g, '_');
+        const matches = zones.filter((zone) => zone.toLowerCase().includes(term)).slice(0, 100);
+        status.textContent = matches.length === 100 ? 'Showing the first 100 matches. Refine your search.' : `${matches.length} timezone${matches.length === 1 ? '' : 's'} found.`;
+        list.innerHTML = matches.map((zone) => `<li><code>${zone}</code><button type="button" data-zone="${zone}">Copy</button></li>`).join('') || '<li>No matching timezone. Try a city or region name.</li>';
+        list.querySelectorAll('[data-zone]').forEach((button) => button.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(button.dataset.zone); button.textContent = 'Copied'; setTimeout(() => { button.textContent = 'Copy'; }, 1200); }
+          catch { button.textContent = 'Select and copy'; }
+        }));
+      }
+      query.addEventListener('input', show);
+      show();
+    </script>
+  </body>
+</html>
