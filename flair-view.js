@@ -123,7 +123,8 @@ export function createFlairView(root, { back }) {
       }
     });
     root.querySelector('#flair-apply')?.addEventListener('click', apply);
-    if (stage === 'edit') updatePreview();
+    // A protected existing flair intentionally has no editable form or preview.
+    if (stage === 'edit' && !config.protectedFlair) updatePreview();
   }
   function updatePreview() {
     const result = preview();
