@@ -194,6 +194,7 @@ type Reply = {
   showForm?: {
     name: string;
     form: {
+      description?: string;
       fields: {
         name: string;
         defaultValue?: unknown;
@@ -269,10 +270,7 @@ void test('post and comment calculator menu reviews adult values and suppresses 
   assert.equal(inputs.showForm?.name, 'bmiInputs');
   const result = await request('/form/bmiInputs', fields(inputs));
   assert.equal(result.showForm?.name, 'bmiResult');
-  assert.equal(
-    result.showForm?.form.fields.find((field) => field.name === 'result')?.defaultValue,
-    '26'
-  );
+  assert.match(result.showForm?.form.description ?? '', /Estimated BMI: 26/);
 
   fakePost.body = '16/f, 170 cm, 60 kg';
   const teen = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });

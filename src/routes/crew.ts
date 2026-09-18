@@ -374,20 +374,10 @@ crew.post('/form/bmiInputs', async (c) => {
       name: 'bmiResult',
       form: {
         title: 'BMI estimate',
-        description: teen
-          ? 'This calculator is intended for adults and is not suitable for assessing teenagers. Do not use this result for someone under 18.'
-          : 'This is an estimate from the values you entered. BMI is a screening measure, not a diagnosis.',
-        acceptLabel: 'Close',
+        description: `${teen ? 'This calculator is intended for adults and is not suitable for assessing teenagers. Do not use this result for someone under 18.' : 'This is an estimate from the values you entered. BMI is a screening measure, not a diagnosis.'}\n\nEstimated BMI: ${bmi}`,
+        acceptLabel: 'Done',
         cancelLabel: 'Close',
-        fields: [
-          {
-            type: 'string',
-            name: 'result',
-            label: 'Estimated BMI',
-            defaultValue: String(bmi),
-            disabled: true,
-          },
-        ],
+        fields: [],
       },
     },
   });
