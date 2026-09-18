@@ -88,6 +88,7 @@ const adminOnly = (who: Identity) => {
 };
 const DASHBOARD_KEY = 'crew:dashboard:v1';
 const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
+const BMI_MODERATORS_ONLY_SETTING = 'communityCalculatorModeratorsOnly';
 
 async function targetText(targetId: string): Promise<string> {
   try {
@@ -221,6 +222,11 @@ crew.post('/menu/bmi', async (c) => {
       showToast: 'The Check-In Crew calculator is disabled in this community.',
     });
   const who = await identity();
+  const moderatorsOnly = await settings.get(BMI_MODERATORS_ONLY_SETTING);
+  if ((moderatorsOnly === true || moderatorsOnly === 'true') && !who.admin)
+    return c.json<UiResponse>({
+      showToast: 'The post calculator is limited to moderators in this community.',
+    });
   const body = await c.req.json<{ targetId?: unknown }>();
   const targetId = typeof body.targetId === 'string' ? body.targetId : '';
   if (!/^t[13]_[A-Za-z0-9]+$/.test(targetId))

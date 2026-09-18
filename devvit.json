@@ -209,6 +209,12 @@
             "defaultValue": false,
             "helpText": "Shows an adult maintenance-calorie estimate and neutral BMI number in the public view. Measurements and results stay in memory on the device; they are not sent to the app server or saved. Off by default for communities that do not need weight-related tools."
           },
+          "communityCalculatorModeratorsOnly": {
+            "type": "boolean",
+            "label": "Limit post calculator to moderators",
+            "defaultValue": false,
+            "helpText": "When enabled, only moderators can open the calculator from a post or comment. The calculator remains available in the public view when enabled."
+          },
           "enableUserFlair": {
             "type": "boolean",
             "label": "Enable Set flair",

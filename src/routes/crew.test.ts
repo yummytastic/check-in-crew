@@ -283,6 +283,18 @@ void test('post and comment calculator menu reviews adult values and suppresses 
     false
   );
 });
+void test('post calculator can be limited to moderators', async () => {
+  reset();
+  installationSettings.set('enableCommunityCalculator', true);
+  installationSettings.set('communityCalculatorModeratorsOnly', true);
+  ctx.userId = 't2_member';
+  const denied = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  assert.match(denied.showToast ?? '', /limited to moderators/);
+
+  ctx.userId = 't2_admin';
+  const allowed = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  assert.equal(allowed.showForm?.name, 'bmiUnits');
+});
 void test('server form and automation integration', async (t) => {
   await t.test('personal-data deletion removes identity records and redacts recorded host credits', async () => {
     const cfg = reset();
