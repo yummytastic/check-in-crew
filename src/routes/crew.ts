@@ -107,18 +107,20 @@ async function targetText(targetId: string): Promise<string> {
   return '';
 }
 
-const numberField = (
+const measurementField = (
   name: string,
   label: string,
   defaultValue?: number
 ): FormField => ({
-  type: 'number',
+  // BMI inputs need decimal values so the displayed rounding boundary can be
+  // tested accurately. Keep validation in the server-side calculator.
+  type: 'string',
   name,
   label,
   required: true,
     ...(defaultValue === undefined || !Number.isFinite(defaultValue)
       ? {}
-      : { defaultValue }),
+      : { defaultValue: String(defaultValue) }),
 });
 
 async function form(
@@ -322,16 +324,16 @@ crew.post('/form/bmiUnits', async (c) => {
   const height = suggestedHeight(hints, heightUnit);
   const weight = suggestedWeight(hints, weightUnit);
   const fields: FormField[] = [];
-  if (heightUnit === 'cm') fields.push(numberField('heightCm', 'Height (cm)', Number(height.cm)));
+  if (heightUnit === 'cm') fields.push(measurementField('heightCm', 'Height (cm)', Number(height.cm)));
   else {
-    fields.push(numberField('heightFeet', 'Height — feet', Number(height.feet)));
-    fields.push(numberField('heightInches', 'Height — inches', Number(height.inches)));
+    fields.push(measurementField('heightFeet', 'Height — feet', Number(height.feet)));
+    fields.push(measurementField('heightInches', 'Height — inches', Number(height.inches)));
   }
-  if (weightUnit === 'kg') fields.push(numberField('weightKg', 'Weight (kg)', Number(weight.kg)));
-  else if (weightUnit === 'lb') fields.push(numberField('weightLb', 'Weight (lb)', Number(weight.lb)));
+  if (weightUnit === 'kg') fields.push(measurementField('weightKg', 'Weight (kg)', Number(weight.kg)));
+  else if (weightUnit === 'lb') fields.push(measurementField('weightLb', 'Weight (lb)', Number(weight.lb)));
   else {
-    fields.push(numberField('weightStone', 'Weight — stone', Number(weight.stone)));
-    fields.push(numberField('weightPounds', 'Weight — pounds', Number(weight.pounds)));
+    fields.push(measurementField('weightStone', 'Weight — stone', Number(weight.stone)));
+    fields.push(measurementField('weightPounds', 'Weight — pounds', Number(weight.pounds)));
   }
   return c.json(
     await form(
