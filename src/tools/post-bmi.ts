@@ -112,12 +112,22 @@ export function suggestedWeight(
   };
 }
 
-export function bmiFromPostValues(
+export function rawBmiFromPostValues(
   heightCm: number,
   weightKg: number
 ): number | undefined {
   if (!Number.isFinite(heightCm) || !Number.isFinite(weightKg)) return undefined;
   if (heightCm < 80 || heightCm > 275 || weightKg < 20 || weightKg > 700)
     return undefined;
-  return Number((weightKg / (heightCm / 100) ** 2).toFixed(1));
+  return weightKg / (heightCm / 100) ** 2;
+}
+
+export function bmiFromPostValues(
+  heightCm: number,
+  weightKg: number
+): number | undefined {
+  const raw = rawBmiFromPostValues(heightCm, weightKg);
+  // The tiny offset avoids binary floating-point values such as 18.449999...
+  // being displayed as 18.4 when the intended decimal value is 18.45.
+  return raw === undefined ? undefined : Number((raw + 1e-9).toFixed(1));
 }

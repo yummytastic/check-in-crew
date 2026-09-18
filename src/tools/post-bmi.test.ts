@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   bmiFromPostValues,
   findPostBmiHints,
+  rawBmiFromPostValues,
   suggestsTeen,
 } from './post-bmi.ts';
 
@@ -31,6 +32,8 @@ void test('teen signals suppress all inferred measurements', () => {
 
 void test('BMI output validates supported adult measurement ranges', () => {
   assert.equal(bmiFromPostValues(170, 75), 26);
+  assert.equal(bmiFromPostValues(170, 18.45 * 1.7 ** 2), 18.5);
+  assert.ok(Math.abs(rawBmiFromPostValues(170, 18.45 * 1.7 ** 2)! - 18.45) < 0.000001);
   assert.equal(bmiFromPostValues(10, 75), undefined);
   assert.equal(bmiFromPostValues(170, Number.NaN), undefined);
 });

@@ -7,6 +7,7 @@ import type { FormField } from '@devvit/shared-types/shared/form.js';
 import {
   bmiFromPostValues,
   findPostBmiHints,
+  rawBmiFromPostValues,
   suggestedHeight,
   suggestedWeight,
 } from '../tools/post-bmi.ts';
@@ -374,13 +375,18 @@ crew.post('/form/bmiInputs', async (c) => {
   const bmi = bmiFromPostValues(heightCm, weightKg);
   if (bmi === undefined)
     throw new Error('Check the measurements. Enter values within the supported adult ranges.');
+  const rawBmi = rawBmiFromPostValues(heightCm, weightKg);
+  const roundingNote =
+    rawBmi !== undefined && rawBmi < 18.5 && bmi >= 18.5
+      ? `\n\nRounded up from ${rawBmi.toFixed(3)}; the unrounded result is below 18.5.`
+      : '';
   const teen = findPostBmiHints(await targetText(flow.series)).teen;
   return c.json<UiResponse>({
     showForm: {
       name: 'bmiResult',
       form: {
         title: 'BMI estimate',
-        description: `${teen ? 'This calculator is intended for adults and is not suitable for assessing teenagers. Do not use this result for someone under 18.' : 'This is an estimate from the values you entered. BMI is a screening measure, not a diagnosis.'}\n\nEstimated BMI: ${bmi}`,
+        description: `${teen ? 'This calculator is intended for adults and is not suitable for assessing teenagers. Do not use this result for someone under 18.' : 'This is an estimate from the values you entered. BMI is a screening measure, not a diagnosis.'}\n\nEstimated BMI: ${bmi}${roundingNote}`,
         acceptLabel: 'Done',
         cancelLabel: 'Close',
         fields: [],

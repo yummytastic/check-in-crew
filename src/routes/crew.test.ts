@@ -272,6 +272,16 @@ void test('post and comment calculator menu reviews adult values and suppresses 
   assert.equal(result.showForm?.name, 'bmiResult');
   assert.match(result.showForm?.form.description ?? '', /Estimated BMI: 26/);
 
+  fakePost.body = '';
+  const low = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const lowInputs = await request('/form/bmiUnits', fields(low));
+  const lowResult = await request('/form/bmiInputs', {
+    ...fields(lowInputs),
+    heightCm: '170',
+    weightKg: String(18.45 * 1.7 ** 2),
+  });
+  assert.match(lowResult.showForm?.form.description ?? '', /Rounded up from 18\.450/);
+
   fakePost.body = '16/f, 170 cm, 60 kg';
   const teen = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
   assert.match(teen.showForm?.form.fields.find((field) => field.name === 'session')?.name ?? '', /session/);
