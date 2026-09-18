@@ -259,6 +259,32 @@ async function openAction(action: string, series = 'eu') {
     action: [action],
   });
 }
+void test('post and comment calculator menu reviews adult values and suppresses teen hints', async () => {
+  reset();
+  installationSettings.set('enableCommunityCalculator', true);
+  fakePost.body = 'I am 170 cm and weigh 75 kg.';
+  const menu = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  assert.equal(menu.showForm?.name, 'bmiUnits');
+  const inputs = await request('/form/bmiUnits', fields(menu));
+  assert.equal(inputs.showForm?.name, 'bmiInputs');
+  const result = await request('/form/bmiInputs', fields(inputs));
+  assert.equal(result.showForm?.name, 'bmiResult');
+  assert.equal(
+    result.showForm?.form.fields.find((field) => field.name === 'result')?.defaultValue,
+    '26'
+  );
+
+  fakePost.body = '16/f, 170 cm, 60 kg';
+  const teen = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  assert.match(teen.showForm?.form.fields.find((field) => field.name === 'session')?.name ?? '', /session/);
+  const teenInputs = await request('/form/bmiUnits', fields(teen));
+  assert.equal(
+    teenInputs.showForm?.form.fields
+      .filter((field) => /^(height|weight)(Cm|Feet|Inches|Kg|Lb|Stone|Pounds)$/.test(field.name))
+      .some((field) => field.defaultValue !== undefined),
+    false
+  );
+});
 void test('server form and automation integration', async (t) => {
   await t.test('personal-data deletion removes identity records and redacts recorded host credits', async () => {
     const cfg = reset();

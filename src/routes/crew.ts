@@ -1,9 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { validateFlairFormat } from '../tools/flair.ts';
-import { redis, context, reddit } from '@devvit/web/server';
+import { redis, context, reddit, settings } from '@devvit/web/server';
 import type { UiResponse } from '@devvit/web/shared';
 import type { FormField } from '@devvit/shared-types/shared/form.js';
+import {
+  bmiFromPostValues,
+  findPostBmiHints,
+  suggestedHeight,
+  suggestedWeight,
+} from '../tools/post-bmi.ts';
 import {
   hostNames,
   localClock,
@@ -43,6 +49,8 @@ type Session = {
   revision: number;
   series: string;
   slot?: Slot;
+  bmiHeightUnit?: 'cm' | 'ft';
+  bmiWeightUnit?: 'kg' | 'lb' | 'st';
 };
 const value = (v: Values, key: string): string =>
   typeof v[key] === 'string' ? v[key] : '';
@@ -79,6 +87,37 @@ const adminOnly = (who: Identity) => {
     );
 };
 const DASHBOARD_KEY = 'crew:dashboard:v1';
+const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
+
+async function targetText(targetId: string): Promise<string> {
+  try {
+    if (targetId.startsWith('t1_')) {
+      const comment = await reddit.getCommentById(targetId as `t1_${string}`);
+      return `${comment.body ?? ''}`;
+    }
+    if (targetId.startsWith('t3_')) {
+      const post = await reddit.getPostById(targetId as `t3_${string}`);
+      return `${post.title ?? ''}\n${post.body ?? ''}`;
+    }
+  } catch {
+    // A removed or unavailable target simply produces a blank manual form.
+  }
+  return '';
+}
+
+const numberField = (
+  name: string,
+  label: string,
+  defaultValue?: number
+): FormField => ({
+  type: 'number',
+  name,
+  label,
+  required: true,
+    ...(defaultValue === undefined || !Number.isFinite(defaultValue)
+      ? {}
+      : { defaultValue }),
+});
 
 async function form(
   who: Identity,
@@ -89,7 +128,10 @@ async function form(
   fields: FormField[],
   description = '',
   slot?: Slot,
-  acceptLabel = 'Save'
+  acceptLabel = 'Save',
+  cancelLabel = 'Cancel',
+  sessionLabel = 'Working on',
+  bmiUnits?: Pick<Session, 'bmiHeightUnit' | 'bmiWeightUnit'>
 ): Promise<UiResponse> {
   const token = randomUUID();
   const session: Session = {
@@ -98,6 +140,7 @@ async function form(
     revision,
     series,
     ...(slot ? { slot } : {}),
+    ...(bmiUnits ?? {}),
   };
   await redis.set('crew:form:' + token, JSON.stringify(session), {
     expiration: new Date(Date.now() + 15 * 60_000),
@@ -109,11 +152,11 @@ async function form(
         title,
         description,
         acceptLabel,
-        cancelLabel: 'Cancel',
+        cancelLabel,
         fields: [
           select(
             'session',
-            'Working on',
+            sessionLabel,
             [{ label: title, value: token }],
             token
           ),
@@ -171,6 +214,59 @@ crew.onError((err, c) => {
   console.error('Check-In Crew:', err.message);
   return c.json<UiResponse>({ showToast: err.message.slice(0, 250) });
 });
+crew.post('/menu/bmi', async (c) => {
+  const enabled = await settings.get(BMI_CALCULATOR_SETTING);
+  if (!(enabled === true || enabled === 'true'))
+    return c.json<UiResponse>({
+      showToast: 'The Check-In Crew calculator is disabled in this community.',
+    });
+  const who = await identity();
+  const body = await c.req.json<{ targetId?: unknown }>();
+  const targetId = typeof body.targetId === 'string' ? body.targetId : '';
+  if (!/^t[13]_[A-Za-z0-9]+$/.test(targetId))
+    return c.json<UiResponse>({ showToast: 'This calculator must be opened from a post or comment.' });
+  const hints = findPostBmiHints(await targetText(targetId));
+  const description = hints.teen
+    ? 'This post contains wording that may indicate someone under 18. The calculator is intended for adults and is not suitable for assessing teenagers. We have not suggested values from the post; you may enter adult values manually.'
+    : hints.heightCm || hints.weightKg
+      ? 'We found possible measurements in the post. They are suggestions only: check and correct them before calculating.'
+      : 'No usable measurements were found. Choose units, then enter the measurements manually.';
+  return c.json(
+    await form(
+      who,
+      'bmiUnits',
+      0,
+      targetId,
+      'Open Check-In Crew calculator',
+      [
+        select(
+          'heightUnit',
+          'Height units',
+          [
+            { label: 'Centimetres', value: 'cm' },
+            { label: 'Feet and inches', value: 'ft' },
+          ],
+          hints.heightUnit ?? 'cm'
+        ),
+        select(
+          'weightUnit',
+          'Weight units',
+          [
+            { label: 'Kilograms', value: 'kg' },
+            { label: 'Pounds', value: 'lb' },
+            { label: 'Stone and pounds', value: 'st' },
+          ],
+          hints.weightUnit ?? 'kg'
+        ),
+      ],
+      description,
+      undefined,
+      'Continue',
+      'Cancel',
+      'Calculator'
+    )
+  );
+});
 crew.post('/menu/dashboard', async (c) => {
   const who = await identity();
   const cfg = await config();
@@ -207,6 +303,96 @@ crew.post('/menu/dashboard', async (c) => {
   await redis.set(DASHBOARD_KEY, post.id);
   return c.json<UiResponse>({ navigateTo: post.url });
 });
+crew.post('/form/bmiUnits', async (c) => {
+  const who = await identity();
+  const v = await c.req.json<Values>();
+  const flow = await session(v, who, 'bmiUnits');
+  const heightUnit = choice(v, 'heightUnit') as 'cm' | 'ft';
+  const weightUnit = choice(v, 'weightUnit') as 'kg' | 'lb' | 'st';
+  if (!['cm', 'ft'].includes(heightUnit) || !['kg', 'lb', 'st'].includes(weightUnit))
+    throw new Error('Choose valid height and weight units.');
+  const hints = findPostBmiHints(await targetText(flow.series));
+  const height = suggestedHeight(hints, heightUnit);
+  const weight = suggestedWeight(hints, weightUnit);
+  const fields: FormField[] = [];
+  if (heightUnit === 'cm') fields.push(numberField('heightCm', 'Height (cm)', Number(height.cm)));
+  else {
+    fields.push(numberField('heightFeet', 'Height — feet', Number(height.feet)));
+    fields.push(numberField('heightInches', 'Height — inches', Number(height.inches)));
+  }
+  if (weightUnit === 'kg') fields.push(numberField('weightKg', 'Weight (kg)', Number(weight.kg)));
+  else if (weightUnit === 'lb') fields.push(numberField('weightLb', 'Weight (lb)', Number(weight.lb)));
+  else {
+    fields.push(numberField('weightStone', 'Weight — stone', Number(weight.stone)));
+    fields.push(numberField('weightPounds', 'Weight — pounds', Number(weight.pounds)));
+  }
+  return c.json(
+    await form(
+      who,
+      'bmiInputs',
+      0,
+      flow.series,
+      'Open Check-In Crew calculator',
+      fields,
+      hints.teen
+        ? 'Enter adult values manually. This calculator is not suitable for assessing teenagers.'
+      : 'Review any suggested values carefully. They were inferred from post text and may be wrong.',
+      undefined,
+      'Calculate BMI',
+      'Change units',
+      'Calculator',
+      { bmiHeightUnit: heightUnit, bmiWeightUnit: weightUnit }
+    )
+  );
+});
+crew.post('/form/bmiInputs', async (c) => {
+  const who = await identity();
+  const v = await c.req.json<Values>();
+  const flow = await session(v, who, 'bmiInputs');
+  const heightUnit = flow.bmiHeightUnit;
+  const weightUnit = flow.bmiWeightUnit;
+  const heightCm =
+    heightUnit === 'cm'
+      ? Number(v.heightCm)
+      : Number(v.heightFeet) >= 0 && Number(v.heightInches) >= 0
+        ? (Number(v.heightFeet) * 12 + Number(v.heightInches)) * 2.54
+        : NaN;
+  const weightKg =
+    weightUnit === 'kg'
+      ? Number(v.weightKg)
+      : weightUnit === 'lb'
+        ? Number(v.weightLb) * 0.45359237
+        : Number(v.weightStone) >= 0 && Number(v.weightPounds) >= 0
+          ? (Number(v.weightStone) * 14 + Number(v.weightPounds)) * 0.45359237
+          : NaN;
+  const bmi = bmiFromPostValues(heightCm, weightKg);
+  if (bmi === undefined)
+    throw new Error('Check the measurements. Enter values within the supported adult ranges.');
+  const teen = findPostBmiHints(await targetText(flow.series)).teen;
+  return c.json<UiResponse>({
+    showForm: {
+      name: 'bmiResult',
+      form: {
+        title: 'BMI estimate',
+        description: teen
+          ? 'This calculator is intended for adults and is not suitable for assessing teenagers. Do not use this result for someone under 18.'
+          : 'This is an estimate from the values you entered. BMI is a screening measure, not a diagnosis.',
+        acceptLabel: 'Close',
+        cancelLabel: 'Close',
+        fields: [
+          {
+            type: 'string',
+            name: 'result',
+            label: 'Estimated BMI',
+            defaultValue: String(bmi),
+            disabled: true,
+          },
+        ],
+      },
+    },
+  });
+});
+crew.post('/form/bmiResult', async (c) => c.json<UiResponse>({}));
 crew.post('/menu/open', async (c) => {
   const who = await identity();
   const cfg = await config();

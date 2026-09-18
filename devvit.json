@@ -741,11 +741,21 @@
         "location": "subreddit",
         "forUserType": "user",
         "endpoint": "/internal/menu/open"
+      },
+      {
+        "label": "Open Check-In Crew calculator",
+        "description": "Review possible adult measurements from this post or comment and calculate BMI.",
+        "location": ["post", "comment"],
+        "forUserType": "user",
+        "endpoint": "/internal/menu/bmi"
       }
     ]
   },
   "forms": {
     "choose": "/internal/form/choose",
+    "bmiUnits": "/internal/form/bmiUnits",
+    "bmiInputs": "/internal/form/bmiInputs",
+    "bmiResult": "/internal/form/bmiResult",
     "createType": "/internal/form/createType",
     "createTiming": "/internal/form/createTiming",
     "create": "/internal/form/create",
