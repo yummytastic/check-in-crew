@@ -1,21 +1,15 @@
 import { reddit, redis } from '@devvit/web/server';
-import { config, type Identity } from './service.ts';
-import { requestPersonalDataDeletion } from './privacy.ts';
+import { config } from './service.ts';
 
 const STATUS = 'crew:account-status:v1';
 const REQUIRED_CHECKS = 3;
 const MIN_CONFIRMATION_AGE = 24 * 60 * 60 * 1000;
+const CONFIG = 'crew:config:v1';
 
 type AccountStatus = {
   username: string;
   firstMissingAt: string;
   checks: number;
-};
-
-const automaticIdentity: Identity = {
-  id: 'automatic-account-cleanup',
-  username: 'check-in-crew',
-  admin: true,
 };
 
 type TrackedAccount = { username: string; id?: string };
@@ -41,6 +35,40 @@ function trackedAccounts(series: Awaited<ReturnType<typeof config>>) {
     }
   }
   return accounts;
+}
+
+/** Remove a missing account from active access and host assignments only.
+ * Historic post text and stored identity records are intentionally untouched;
+ * full personal-data deletion requires an explicit moderator request.
+ */
+async function removeActiveAccess(username: string): Promise<void> {
+  const key = username.toLowerCase();
+  const tx = await redis.watch(CONFIG);
+  let executed = false;
+  try {
+    const cfg = await config();
+    for (const series of cfg.series) {
+      series.maintainers = series.maintainers.filter(
+        (member) => member.username.toLowerCase() !== key
+      );
+      if (series.hostRoster)
+        series.hostRoster = series.hostRoster.filter(
+          (name) => name.toLowerCase() !== key
+        );
+      for (const month of Object.keys(series.hosts))
+        series.hosts[month] = series.hosts[month]!.filter(
+          (name) => name.toLowerCase() !== key
+        );
+    }
+    cfg.revision++;
+    await tx.multi();
+    await tx.set(CONFIG, JSON.stringify(cfg));
+    const result = await tx.exec();
+    executed = true;
+    if (!result?.length) throw Error('Settings changed while checking accounts.');
+  } finally {
+    if (!executed) await tx.unwatch();
+  }
 }
 
 /**
@@ -73,7 +101,7 @@ export async function checkTrackedAccounts(now = new Date()): Promise<void> {
       now.getTime() - Date.parse(firstMissingAt) >= MIN_CONFIRMATION_AGE
     ) {
       try {
-        await requestPersonalDataDeletion(automaticIdentity, account.username, 'DELETE');
+        await removeActiveAccess(account.username);
         await redis.hDel(STATUS, [key]);
       } catch {
         // An active deletion job or transient failure is retried next tick.

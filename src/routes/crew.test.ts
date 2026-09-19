@@ -311,9 +311,10 @@ void test('post calculator can be limited to moderators', async () => {
   const allowed = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
   assert.equal(allowed.showForm?.name, 'bmiUnits');
 });
-void test('automatic account checks require repeated missing results before deletion', async () => {
+void test('automatic account checks remove active access without historic deletion', async () => {
   reset();
   missingAccounts.add('t2_volunteer');
+  fakePost.body = 'Thanks u/volunteer for hosting.';
   const start = new Date('2026-09-01T00:00:00Z');
   await checkTrackedAccounts(start);
   assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 1);
@@ -324,7 +325,10 @@ void test('automatic account checks require repeated missing results before dele
     Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}')).length,
     0
   );
-  assert.equal(records.has('crew:privacy-deletion'), true);
+  assert.equal(records.has('crew:privacy-deletion'), false);
+  const updated = JSON.parse(records.get('crew:config:v1')!) as Config;
+  assert.equal(updated.series[0]!.maintainers.some((member) => member.username === 'volunteer'), false);
+  assert.equal(fakePost.body, 'Thanks u/volunteer for hosting.');
 });
 void test('server form and automation integration', async (t) => {
   await t.test('personal-data deletion removes identity records and redacts recorded host credits', async () => {

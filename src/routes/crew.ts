@@ -227,7 +227,7 @@ crew.post('/menu/bmi', async (c) => {
     });
   const who = await identity();
   const moderatorsOnly = await settings.get(BMI_MODERATORS_ONLY_SETTING);
-  if ((moderatorsOnly === true || moderatorsOnly === 'true') && !who.admin)
+  if (!(moderatorsOnly === false || moderatorsOnly === 'false') && !who.admin)
     return c.json<UiResponse>({
       showToast: 'The post calculator is limited to moderators in this community.',
     });

@@ -212,8 +212,8 @@
           "communityCalculatorModeratorsOnly": {
             "type": "boolean",
             "label": "Limit post calculator to moderators",
-            "defaultValue": false,
-            "helpText": "When enabled, only moderators can open the calculator from a post or comment. The calculator remains available in the public view when enabled."
+            "defaultValue": true,
+            "helpText": "Only moderators can open the calculator from a post or comment unless you explicitly turn this off. The calculator remains available in the public view when enabled. Existing installations remain moderator-only until this setting is explicitly turned off."
           },
           "enableUserFlair": {
             "type": "boolean",
