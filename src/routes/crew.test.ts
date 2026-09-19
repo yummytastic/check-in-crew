@@ -316,9 +316,9 @@ void test('automatic account checks require repeated missing results before dele
   missingAccounts.add('t2_volunteer');
   const start = new Date('2026-09-01T00:00:00Z');
   await checkTrackedAccounts(start);
-  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).t2_volunteer).checks, 1);
+  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 1);
   await checkTrackedAccounts(new Date('2026-09-01T12:00:00Z'));
-  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).t2_volunteer).checks, 2);
+  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 2);
   await checkTrackedAccounts(new Date('2026-09-02T00:00:00Z'));
   assert.equal(
     Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}')).length,
