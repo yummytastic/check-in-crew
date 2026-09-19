@@ -18,12 +18,28 @@ const automaticIdentity: Identity = {
   admin: true,
 };
 
+type TrackedAccount = { username: string; id?: string };
+
 function trackedAccounts(series: Awaited<ReturnType<typeof config>>) {
-  const accounts = new Map<string, string>();
+  const accounts = new Map<string, TrackedAccount>();
   for (const item of series.series)
-    for (const member of item.maintainers)
+    for (const member of item.maintainers) {
       if (/^t2_[A-Za-z0-9]+$/.test(member.id))
-        accounts.set(member.id, member.username);
+        accounts.set(member.username.toLowerCase(), {
+          id: member.id,
+          username: member.username,
+        });
+    }
+  for (const item of series.series) {
+    const names = [
+      ...(item.hostRoster ?? []),
+      ...Object.values(item.hosts).flat(),
+    ];
+    for (const username of names) {
+      const key = username.toLowerCase();
+      if (!accounts.has(key)) accounts.set(key, { username });
+    }
+  }
   return accounts;
 }
 
@@ -34,34 +50,36 @@ function trackedAccounts(series: Awaited<ReturnType<typeof config>>) {
 export async function checkTrackedAccounts(now = new Date()): Promise<void> {
   const accounts = trackedAccounts(await config());
   const statuses = await redis.hGetAll(STATUS);
-  for (const [id, username] of accounts) {
+  for (const [key, account] of accounts) {
     let user;
     try {
-      user = await reddit.getUserById(id as `t2_${string}`);
+      user = account.id
+        ? await reddit.getUserById(account.id as `t2_${string}`)
+        : await reddit.getUserByUsername(account.username);
     } catch {
       continue;
     }
     if (user) {
-      if (statuses[id]) await redis.hDel(STATUS, [id]);
+      if (statuses[key]) await redis.hDel(STATUS, [key]);
       continue;
     }
 
-    const previous = statuses[id] ? (JSON.parse(statuses[id]!) as AccountStatus) : undefined;
+    const previous = statuses[key] ? (JSON.parse(statuses[key]!) as AccountStatus) : undefined;
     const firstMissingAt = previous?.firstMissingAt ?? now.toISOString();
     const checks = (previous?.checks ?? 0) + 1;
-    const next: AccountStatus = { username, firstMissingAt, checks };
+    const next: AccountStatus = { username: account.username, firstMissingAt, checks };
     if (
       checks >= REQUIRED_CHECKS &&
       now.getTime() - Date.parse(firstMissingAt) >= MIN_CONFIRMATION_AGE
     ) {
       try {
-        await requestPersonalDataDeletion(automaticIdentity, username, 'DELETE');
-        await redis.hDel(STATUS, [id]);
+        await requestPersonalDataDeletion(automaticIdentity, account.username, 'DELETE');
+        await redis.hDel(STATUS, [key]);
       } catch {
         // An active deletion job or transient failure is retried next tick.
       }
     } else {
-      await redis.hSet(STATUS, { [id]: JSON.stringify(next) });
+      await redis.hSet(STATUS, { [key]: JSON.stringify(next) });
     }
   }
 }
