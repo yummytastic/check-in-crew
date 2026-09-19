@@ -3,6 +3,7 @@ import { config, publish } from '../core/service.ts';
 import { dueSlots } from '../core/model.ts';
 import { processSeriesDeletions } from '../core/deletion.ts';
 import { processPersonalDataDeletion } from '../core/privacy.ts';
+import { checkTrackedAccounts } from '../core/account-cleanup.ts';
 export const automation = new Hono();
 automation.post('/scheduler/tick', async (c) => {
   const now = new Date();
@@ -29,6 +30,12 @@ automation.post('/scheduler/tick', async (c) => {
   } catch (error) {
     failures++;
     console.error('Series deletion needs attention', error);
+  }
+  try {
+    await checkTrackedAccounts(now);
+  } catch (error) {
+    failures++;
+    console.error('Account deletion checks need attention', error);
   }
   try {
     await processPersonalDataDeletion();

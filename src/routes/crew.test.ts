@@ -12,6 +12,7 @@ const records = new Map<string, string>();
 const ctx = { userId: 't2_admin', subredditName: 'loseit_test' };
 let banned = false;
 let failIdentity = false;
+const missingAccounts = new Set<string>();
 let manualSetting: boolean | string = true;
 const installationSettings = new Map<string, unknown>();
 let sent = 0;
@@ -138,6 +139,9 @@ mock.module('@devvit/web/server', {
       async getUserByUsername(name: string) {
         return user('t2_' + name);
       },
+      async getUserById(id: string) {
+        return missingAccounts.has(id) ? undefined : user(id);
+      },
       async getSubredditByName() {
         return {
           userFlairsEnabled: true,
@@ -166,6 +170,7 @@ const { automation } = await import('./automation.ts');
 const { processSeriesDeletions, deletionSettings } =
   await import('../core/deletion.ts');
 const { processPersonalDataDeletion } = await import('../core/privacy.ts');
+const { checkTrackedAccounts } = await import('../core/account-cleanup.ts');
 const { api } = await import('./api.ts');
 const {
   publish,
@@ -222,6 +227,7 @@ function reset(): Config {
   ctx.userId = 't2_admin';
   banned = false;
   failIdentity = false;
+  missingAccounts.clear();
   manualSetting = true;
   installationSettings.clear();
   installationSettings.set('enableCommunityCalculator', false);
@@ -304,6 +310,21 @@ void test('post calculator can be limited to moderators', async () => {
   ctx.userId = 't2_admin';
   const allowed = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
   assert.equal(allowed.showForm?.name, 'bmiUnits');
+});
+void test('automatic account checks require repeated missing results before deletion', async () => {
+  reset();
+  missingAccounts.add('t2_volunteer');
+  const start = new Date('2026-09-01T00:00:00Z');
+  await checkTrackedAccounts(start);
+  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).t2_volunteer).checks, 1);
+  await checkTrackedAccounts(new Date('2026-09-01T12:00:00Z'));
+  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).t2_volunteer).checks, 2);
+  await checkTrackedAccounts(new Date('2026-09-02T00:00:00Z'));
+  assert.equal(
+    Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}')).length,
+    0
+  );
+  assert.equal(records.has('crew:privacy-deletion'), true);
 });
 void test('server form and automation integration', async (t) => {
   await t.test('personal-data deletion removes identity records and redacts recorded host credits', async () => {
