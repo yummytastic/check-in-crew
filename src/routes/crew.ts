@@ -14,6 +14,7 @@ import {
 import {
   hostNames,
   localClock,
+  isCheckInCrewAuthor,
   parseDate,
   slotsForSeries,
   validMonth,
@@ -1326,7 +1327,7 @@ crew.post('/form/resolve', async (c) => {
       post.subredditName.toLowerCase() !==
         context.subredditName.toLowerCase() ||
       post.title !== content.title ||
-      post.authorName.toLowerCase() !== 'check-in-crew'
+      !isCheckInCrewAuthor(post.authorName)
     )
       throw new Error(
         'That post does not match this app, series, date and community.'

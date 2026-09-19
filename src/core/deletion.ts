@@ -6,7 +6,7 @@ import {
   publicationStore,
   type Identity,
 } from './service.ts';
-import type { Config, Publication, Series } from './model.ts';
+import { isCheckInCrewAuthor, type Config, type Publication, type Series } from './model.ts';
 
 const CONFIG = 'crew:config:v1';
 const AUDIT = 'crew:audit';
@@ -183,7 +183,7 @@ async function ownPost(id: string) {
   if (
     post.id !== id ||
     post.subredditName.toLowerCase() !== context.subredditName.toLowerCase() ||
-    !['check-in-crew', '[deleted]'].includes(post.authorName.toLowerCase())
+    !isCheckInCrewAuthor(post.authorName)
   )
     throw Error('The recorded post does not belong to this app and community.');
   return post;

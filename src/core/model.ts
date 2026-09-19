@@ -9,6 +9,8 @@ export type StickyPlacement = 'none' | 'slot1' | 'slot2';
 export type StickyConfig = Record<Kind, StickyPlacement>;
 export type TemplateOverrides = Partial<Record<Kind, string>>;
 export type Member = { id: string; username: string; through: string };
+export const isCheckInCrewAuthor = (name: string): boolean =>
+  ['check-in-crew', '[deleted]'].includes(name.toLowerCase());
 export type SeriesType = 'accountability' | 'simple';
 export type SimpleFrequency = 'daily' | 'weekly' | 'other';
 export type PostOverride = { title?: string; body?: string };
@@ -189,13 +191,13 @@ export function dueSlots(series: Series, now: Date): Slot[] {
       localClock(now, series.timezone).date,
       localClock(new Date(now.getTime() - 600000), series.timezone).date,
     ]);
-    return [...dates]
+    const due = [...dates]
       .flatMap((date) => repeatSlots(series, date))
       .filter((slot) => {
         const age = now.getTime() - Date.parse(slot.at!);
         return age >= 0 && age < 600000;
-      })
-      .slice(-1);
+      });
+    return due;
   }
   const clock = localClock(now, series.timezone);
   return clock.time >= series.time ? slotsForSeries(series, clock.date) : [];

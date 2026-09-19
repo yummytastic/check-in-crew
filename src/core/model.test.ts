@@ -87,6 +87,51 @@ void test('simple daily posting continues beyond the 15th and across month/year 
     assert.equal(dueSlots(series, new Date(date + 'T12:00:00Z')).length, 1);
   }
 });
+void test('custom schedule due window keeps nearby history and current occurrences', () => {
+  const series = {
+    ...defaults().series[0]!,
+    seriesType: 'simple' as const,
+    frequency: 'other' as const,
+    enabled: true,
+    schedule: {
+      frequency: 'other' as const,
+      unit: 'days' as const,
+      interval: 1,
+      start: '2026-09-01T08:05',
+      weekdays: [],
+      monthMode: 'day' as const,
+      monthDay: 1,
+      ordinal: 1,
+      monthWeekday: 1,
+      shortMonth: 'last' as const,
+    },
+    scheduleHistory: [
+      {
+        frequency: 'other' as const,
+        weekday: 0,
+        timezone: 'Europe/London',
+        time: '08:00',
+        schedule: {
+          frequency: 'other' as const,
+          unit: 'days' as const,
+          interval: 1,
+          start: '2026-09-01T08:00',
+          weekdays: [],
+          monthMode: 'day' as const,
+          monthDay: 1,
+          ordinal: 1,
+          monthWeekday: 1,
+          shortMonth: 'last' as const,
+        },
+        until: '2026-09-01T08:05:00.000Z',
+      },
+    ],
+  };
+  assert.equal(
+    dueSlots(series, new Date('2026-09-01T07:09:00Z')).length,
+    2
+  );
+});
 void test('other schedules support custom intervals, month-end and monthly weekday rules', () => {
   const base = {
     ...defaults().series[0]!,
