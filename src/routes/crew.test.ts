@@ -159,6 +159,18 @@ mock.module('@devvit/web/server', {
           },
         };
       },
+      async submitCustomPost() {
+        return {
+          id: 't3_dashboard',
+          url: 'https://www.reddit.com/r/loseit_test/comments/dashboard',
+          subredditName: 'loseit_test',
+          removed: false,
+          locked: false,
+          async lock() {
+            this.locked = true;
+          },
+        };
+      },
       async getPostById(id: string) {
         return fakePosts.get(id) ?? fakePost;
       },
@@ -1049,6 +1061,11 @@ void test('server form and automation integration', async (t) => {
           .showForm!.form.fields.find((f) => f.name === 'series')!
           .options!.some((o) => o.value === '__new')
       );
+      const dashboardPrompt = await request('/menu/dashboard');
+      assert.equal(dashboardPrompt.showForm?.name, 'dashboardConfirm');
+      assert.match(dashboardPrompt.showForm?.form.description ?? '', /locked permanent post/);
+      const dashboard = await request('/form/dashboardConfirm', fields(dashboardPrompt));
+      assert.match(dashboard.navigateTo ?? '', /dashboard/);
       ctx.userId = 't2_volunteer';
       const pause = await openAction('emergencyPause');
       assert.match(

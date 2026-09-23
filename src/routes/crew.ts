@@ -301,6 +301,47 @@ crew.post('/menu/dashboard', async (c) => {
       // Recreate the dashboard if the saved post was removed or unavailable.
     }
   }
+  return c.json(
+    await form(
+      who,
+      'dashboardConfirm',
+      cfg.revision,
+      '__dashboard',
+      'Create the dashboard post?',
+      [],
+      'This will create a locked permanent post on the subreddit to access the Check-In Crew dashboard. Would you like to do this now?',
+      undefined,
+      'Post to subreddit',
+      'Not yet - cancel',
+      'Dashboard'
+    )
+  );
+});
+crew.post('/form/dashboardConfirm', async (c) => {
+  const who = await identity();
+  const v = await c.req.json<Values>();
+  const flow = await session(v, who, 'dashboardConfirm');
+  const cfg = await config();
+  if (cfg.revision !== flow.revision)
+    throw Error('Settings changed. Reopen Check-In Crew and try again.');
+  if (!who.admin && !cfg.series.some((series) => allowed(series, who)))
+    throw Error('Ask a moderator to add your Reddit account as a series maintainer.');
+  const existing = await redis.get(DASHBOARD_KEY);
+  if (existing) {
+    try {
+      const post = await reddit.getPostById(existing as `t3_${string}`);
+      if (
+        post.subredditName.toLowerCase() ===
+          context.subredditName.toLowerCase() &&
+        !post.removed
+      ) {
+        if (!post.locked) await post.lock();
+        return c.json<UiResponse>({ navigateTo: post.url });
+      }
+    } catch {
+      // Recreate the dashboard if the saved post was removed or unavailable.
+    }
+  }
   const post = await reddit.submitCustomPost({
     subredditName: context.subredditName,
     title: 'Check-In Crew — Community tools & dashboard',
