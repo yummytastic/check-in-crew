@@ -2,7 +2,7 @@
 
 ## Public policies
 
-The source for the public policy pages is in [`docs/site`](docs/site). GitHub Pages deploys it through [`.github/workflows/pages.yml`](.github/workflows/pages.yml) once this project is connected to a GitHub repository with Pages set to **GitHub Actions**. Add the resulting `/privacy/` and `/terms/` HTTPS URLs to the Devvit App Details page before submission.
+The source for the public policy pages and [maintainer quickstart](docs/site/maintainers/) is in [`docs/site`](docs/site). GitHub Pages deploys it through [`.github/workflows/pages.yml`](.github/workflows/pages.yml) once this project is connected to a GitHub repository with Pages set to **GitHub Actions**. Add the resulting `/privacy/` and `/terms/` HTTPS URLs to the Devvit App Details page before submission.
 
 Run monthly accountability threads and recurring community posts with automatic scheduling, editable upcoming posts, and volunteer hosts who can manage their series without being moderators.
 
