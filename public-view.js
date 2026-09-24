@@ -116,7 +116,7 @@ export function createPublicView(
         failed: 'Could not check access. Please retry.',
         authorised: 'Your account has management access.',
       }[access];
-      content = `<p>Scheduled community check-ins and recurring posts, supported by volunteer hosts.</p><p><span class="public-full-copy">This post contains community tools and the management panel. To join a check-in, comment on the community’s check-in threads.</span><span class="public-compact-copy">Join check-ins by commenting on the community’s threads. Tools and management are here.</span></p>${community ? `<button type="button" class="link-button" id="public-community">Visit r/${esc(community)}</button>` : ''}${enabled ? `<section class="public-tools"><h2>Community tools</h2><div class="public-tool-choice"><div><h3>BMI calculator</h3><p>Calculate BMI from your height and weight.</p>${button('open-bmi', 'Open BMI calculator')}</div><div><h3>Calorie needs calculator</h3><p>Estimate daily calorie needs and include BMI in the result.</p>${button('open-calculator', 'Open calorie calculator')}</div></div></section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}<section class="public-access"><h2>For moderators and assigned volunteers</h2><p><span class="public-full-copy">Management access is only needed if you’ve been asked to help manage a series.</span><span class="public-compact-copy">Only needed if you’ve been asked to manage a series.</span></p><p id="public-access-status" role="status">${accessMessage}</p></section>`;
+      content = `<p>Scheduled community check-ins and recurring posts, supported by volunteer hosts.</p><p><span class="public-full-copy">This post contains community tools and the management panel. To join a check-in, comment on the community’s check-in threads.</span><span class="public-compact-copy">Join check-ins by commenting on the community’s threads. Tools and management are here.</span></p>${community ? `<button type="button" class="link-button" id="public-community">Visit r/${esc(community)}</button>` : ''}${enabled ? `<section class="public-tools"><h2>Community tools</h2>${button('open-bmi', 'BMI calculator')}${button('open-calculator', 'TDEE calculator')}${flairEnabled ? button('public-set-flair', 'Set flair') : ''}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}<section class="public-access"><h2>For moderators and assigned volunteers</h2><p><span class="public-full-copy">Management access is only needed if you’ve been asked to help manage a series.</span><span class="public-compact-copy">Only needed if you’ve been asked to manage a series.</span></p><p id="public-access-status" role="status">${accessMessage}</p></section>`;
       const management =
         access === 'authorised'
           ? button('public-open-dashboard', 'Open dashboard', true)
@@ -190,15 +190,6 @@ export function createPublicView(
         )
         .join('')}</nav><div class="calculation-help">${pages[helpTab]}</div>`;
       footer = button('calculator-help-back', 'Back', true);
-    }
-    if (flairEnabled && ['home', 'inputs'].includes(view)) {
-      const management = footer.indexOf('<button type="button"');
-      footer =
-        footer.slice(0, management) +
-        '<div class="public-footer-tools">' +
-        button('public-set-flair', 'Set flair', true) +
-        footer.slice(management) +
-        '</div>';
     }
     root.innerHTML = `<div class="public-screen" data-public-screen="${view}"><h1 tabindex="-1">${heading}</h1><div class="public-content">${content}</div><div class="public-footer">${footer}</div></div>`;
     const bind = (id, action) =>
