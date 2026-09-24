@@ -158,9 +158,10 @@ export function createPublicView(
       )}</div>`}<p id="activity-description" class="public-muted">${calculatorMode === 'bmi' ? 'BMI is an adult screening measure, not a diagnosis.' : esc(activityDescription())}</p></div></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
       footer =
         '<button type="submit" form="calculator-form" id="calculator-submit">Calculate</button>' +
+        button('calculator-back', 'Back', true) +
         (access === 'authorised'
           ? button('public-open-dashboard', 'Open dashboard', true)
-          : button('calculator-back', 'About Check-In Crew', true));
+          : button('calculator-access', 'About Check-In Crew', true));
     } else if (view === 'results') {
       heading = 'Your estimate';
       content = calculatorMode === 'bmi' ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>` : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
@@ -234,6 +235,7 @@ export function createPublicView(
       root.querySelector('#public-check-access').disabled =
         access === 'checking';
     bind('calculator-back', () => go('home'));
+    bind('calculator-access', () => go('home'));
     bind('calculator-home', () => go('home'));
     bind('calculator-edit', () => go('inputs'));
     bind('calculation-help', help);
@@ -443,16 +445,16 @@ export function createPublicView(
       // Update navigation without rebuilding an in-progress form.
       if (view === 'inputs') {
         const existing = root.querySelector(
-          '#public-open-dashboard, #calculator-back'
+          '#public-open-dashboard, #calculator-access'
         );
         if (existing) {
           const replacement = document.createElement('button');
           replacement.type = 'button';
           replacement.className = 'secondary';
-          replacement.id =
+            replacement.id =
             access === 'authorised'
               ? 'public-open-dashboard'
-              : 'calculator-back';
+              : 'calculator-access';
           replacement.textContent =
             access === 'authorised' ? 'Open dashboard' : 'About Check-In Crew';
           replacement.addEventListener(
