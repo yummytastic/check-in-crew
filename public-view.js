@@ -116,7 +116,15 @@ export function createPublicView(
         failed: 'Could not check access. Please retry.',
         authorised: 'Your account has management access.',
       }[access];
-      content = `<p>Scheduled community check-ins and recurring posts, supported by volunteer hosts.</p><p><span class="public-full-copy">This post contains community tools and the management panel. To join a check-in, comment on the community’s check-in threads.</span><span class="public-compact-copy">Join check-ins by commenting on the community’s threads. Tools and management are here.</span></p>${community ? `<button type="button" class="link-button" id="public-community">Visit r/${esc(community)}</button>` : ''}${enabled ? `<section class="public-tools"><h2>Community tools</h2>${button('open-bmi', 'BMI calculator')}${button('open-calculator', 'TDEE calculator')}${flairEnabled ? button('public-set-flair', 'Set flair') : ''}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}<section class="public-access"><h2>For moderators and assigned volunteers</h2><p><span class="public-full-copy">Management access is only needed if you’ve been asked to help manage a series.</span><span class="public-compact-copy">Only needed if you’ve been asked to manage a series.</span></p><p id="public-access-status" role="status">${accessMessage}</p></section>`;
+      const communityLabel = community ? `/r/${esc(community)}` : 'This community';
+      const modmail = community
+        ? `<a href="https://www.reddit.com/message/compose?to=%2Fr%2F${encodeURIComponent(community)}">message the moderators</a>`
+        : 'message the moderators';
+      const introduction =
+        access === 'authorised'
+          ? `${communityLabel}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please ${modmail}.`
+          : `${communityLabel}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please ${modmail}.`;
+      content = `<p>${introduction}</p>${enabled ? `<section class="public-tools"><h2>Community tools</h2>${button('open-bmi', 'BMI calculator')}${button('open-calculator', 'TDEE calculator')}${flairEnabled ? button('public-set-flair', 'Set flair') : ''}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}${access === 'authorised' ? '' : `<p id="public-access-status" class="public-muted" role="status">${accessMessage}</p>`}`;
       const management =
         access === 'authorised'
           ? button('public-open-dashboard', 'Open dashboard', true)
