@@ -25,6 +25,7 @@ export function createPublicView(
   let publicFailed = false;
   let community = '';
   let view = 'home';
+  let calculatorMode = 'calories';
   let helpFrom = 'home';
   let helpTab = 'basics';
   let heightUnits = 'cm';
@@ -115,8 +116,8 @@ export function createPublicView(
         failed: 'Could not check access. Please retry.',
         authorised: 'Your account has management access.',
       }[access];
-      content = `<p>Scheduled community check-ins and recurring posts, supported by volunteer hosts.</p><p><span class="public-full-copy">This post contains community tools and the management panel. To join a check-in, comment on the community’s check-in threads.</span><span class="public-compact-copy">Join check-ins by commenting on the community’s threads. Tools and management are here.</span></p>${community ? `<button type="button" class="link-button" id="public-community">Visit r/${esc(community)}</button>` : ''}${enabled ? `<section class="public-tools"><h2>Community tools</h2><h3>Calorie needs &amp; BMI</h3><p>Estimate daily calorie needs and calculate BMI.</p>${button('open-calculator', 'Open calculator')}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}<section class="public-access"><h2>For moderators and assigned volunteers</h2><p><span class="public-full-copy">Management access is only needed if you’ve been asked to help manage a series.</span><span class="public-compact-copy">Only needed if you’ve been asked to manage a series.</span></p><p id="public-access-status" role="status">${accessMessage}</p></section>`;
-      footer =
+      content = `<p>Scheduled community check-ins and recurring posts, supported by volunteer hosts.</p><p><span class="public-full-copy">This post contains community tools and the management panel. To join a check-in, comment on the community’s check-in threads.</span><span class="public-compact-copy">Join check-ins by commenting on the community’s threads. Tools and management are here.</span></p>${community ? `<button type="button" class="link-button" id="public-community">Visit r/${esc(community)}</button>` : ''}${enabled ? `<section class="public-tools"><h2>Community tools</h2><div class="public-tool-choice"><div><h3>BMI calculator</h3><p>Calculate BMI from your height and weight.</p>${button('open-bmi', 'Open BMI calculator')}</div><div><h3>Calorie needs calculator</h3><p>Estimate daily calorie needs and include BMI in the result.</p>${button('open-calculator', 'Open calorie calculator')}</div></div></section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}<section class="public-access"><h2>For moderators and assigned volunteers</h2><p><span class="public-full-copy">Management access is only needed if you’ve been asked to help manage a series.</span><span class="public-compact-copy">Only needed if you’ve been asked to manage a series.</span></p><p id="public-access-status" role="status">${accessMessage}</p></section>`;
+      const management =
         access === 'authorised'
           ? button('public-open-dashboard', 'Open dashboard', true)
           : button(
@@ -124,16 +125,22 @@ export function createPublicView(
               access === 'failed' ? 'Retry access check' : 'Check my access',
               true
             );
+      footer = button('public-about', 'About Check-In Crew', true) + management;
+    } else if (view === 'about') {
+      heading = 'About Check-In Crew';
+      content = '<p>Check-In Crew helps moderators and volunteer hosts run scheduled community check-ins and recurring posts.</p><p>You can use the available calculator and flair tools. If you have questions or need management access, contact the community moderators through modmail.</p>';
+      footer = button('about-back', 'Back', true);
     } else if (view === 'inputs') {
-      heading = 'Calorie needs & BMI';
-      content = `<form id="calculator-form" novalidate autocomplete="off"><div class="calculator-grid">${input('age', 'Age (18+)', 'numeric')}${select(
+      heading = calculatorMode === 'bmi' ? 'BMI calculator' : 'Calorie needs calculator';
+      const calorieFields = calculatorMode === 'bmi' ? '' : `${input('age', 'Age (18+)', 'numeric')}${select(
         'sex',
         'Sex used by formula',
         [
           ['female', 'Female'],
           ['male', 'Male'],
         ]
-      )}<div class="measurement-group"><label><span class="unit-label">Height units</span><select id="calc-height-units"><option value="cm"${heightUnits === 'cm' ? ' selected' : ''}>Centimetres</option><option value="ft"${heightUnits === 'ft' ? ' selected' : ''}>Feet &amp; inches</option></select></label>${heightUnits === 'cm' ? input('height', 'Height (cm)') : `<div class="split-measurement">${input('feet', 'Feet', 'numeric')}${input('inches', 'Inches')}</div>`}</div><div class="measurement-group"><label><span class="unit-label">Weight units</span><select id="calc-weight-units">${[
+      )}`;
+      content = `<form id="calculator-form" novalidate autocomplete="off"><div class="calculator-grid">${calorieFields}<div class="measurement-group"><label><span class="unit-label">Height units</span><select id="calc-height-units"><option value="cm"${heightUnits === 'cm' ? ' selected' : ''}>Centimetres</option><option value="ft"${heightUnits === 'ft' ? ' selected' : ''}>Feet &amp; inches</option></select></label>${heightUnits === 'cm' ? input('height', 'Height (cm)') : `<div class="split-measurement">${input('feet', 'Feet', 'numeric')}${input('inches', 'Inches')}</div>`}</div><div class="measurement-group"><label><span class="unit-label">Weight units</span><select id="calc-weight-units">${[
         ['kg', 'Kilograms'],
         ['lb', 'Pounds'],
         ['st', 'Stone & pounds'],
@@ -144,11 +151,11 @@ export function createPublicView(
         )
         .join(
           ''
-        )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div><div class="activity-field">${select(
+      )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div>${calculatorMode === 'bmi' ? '' : `<div class="activity-field">${select(
         'activity',
         'Activity level',
         activityLevels.map((level) => [level.id, level.label])
-      )}</div></div><p id="activity-description" class="public-muted">${esc(activityDescription())}</p></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
+      )}</div>`}<p id="activity-description" class="public-muted">${calculatorMode === 'bmi' ? 'BMI is an adult screening measure, not a diagnosis.' : esc(activityDescription())}</p></div></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
       footer =
         '<button type="submit" form="calculator-form" id="calculator-submit">Calculate</button>' +
         (access === 'authorised'
@@ -156,7 +163,7 @@ export function createPublicView(
           : button('calculator-back', 'About Check-In Crew', true));
     } else if (view === 'results') {
       heading = 'Your estimate';
-      content = `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
+      content = calculatorMode === 'bmi' ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>` : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
       footer =
         button('calculator-edit', 'Edit details') +
         button('calculator-home', 'Back to home', true);
@@ -196,7 +203,16 @@ export function createPublicView(
     root.innerHTML = `<div class="public-screen" data-public-screen="${view}"><h1 tabindex="-1">${heading}</h1><div class="public-content">${content}</div><div class="public-footer">${footer}</div></div>`;
     const bind = (id, action) =>
       root.querySelector('#' + id)?.addEventListener('click', action);
-    bind('open-calculator', () => go('inputs'));
+    bind('open-bmi', () => {
+      calculatorMode = 'bmi';
+      go('inputs');
+    });
+    bind('open-calculator', () => {
+      calculatorMode = 'calories';
+      go('inputs');
+    });
+    bind('public-about', () => go('about'));
+    bind('about-back', () => go('home'));
     bind('public-set-flair', (event) => {
       try {
         if (openFlair(event)) return;
@@ -358,11 +374,11 @@ export function createPublicView(
       .addEventListener('submit', (event) => {
         event.preventDefault();
         const computed = calculate({
-          age: num(values.age),
-          sex: values.sex,
+          age: calculatorMode === 'bmi' ? 18 : num(values.age),
+          sex: calculatorMode === 'bmi' ? 'female' : values.sex,
           heightCm,
           weightKg,
-          activity: values.activity,
+          activity: calculatorMode === 'bmi' ? 'low' : values.activity,
         });
         const errors = Object.fromEntries(
           Object.entries(computed.errors).map(([name, error]) => [
@@ -397,6 +413,11 @@ export function createPublicView(
             num(values.pounds) >= 14
           )
             errors.pounds = 'Use pounds from 0 to under 14.';
+        }
+        if (calculatorMode === 'bmi') {
+          delete errors.age;
+          delete errors.sex;
+          delete errors.activity;
         }
         if (Object.keys(errors).length) {
           showErrors(errors);
@@ -460,9 +481,9 @@ export function createPublicView(
       }
       community = options.community ?? '';
       publicFailed = Boolean(options.failed);
-      if (!optionsLoaded && !publicFailed) {
-        optionsLoaded = true;
-        if (enabled && !dashboardOpening) view = 'inputs';
+        if (!optionsLoaded && !publicFailed) {
+          optionsLoaded = true;
+          view = 'home';
       }
       if (!enabled && ['inputs', 'results', 'help'].includes(view))
         view = 'home';
