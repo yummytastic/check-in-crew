@@ -116,7 +116,9 @@ export function createPublicView(
         failed: 'Could not check access. Please retry.',
         authorised: 'Your account has management access.',
       }[access];
-      const communityLabel = community ? `/r/${esc(community)}` : 'This community';
+      const communityLabel = community
+        ? `<a href="https://www.reddit.com/r/${encodeURIComponent(community)}/">/r/${esc(community)}</a>`
+        : 'This community';
       const modmail = community
         ? `<a href="https://www.reddit.com/message/compose?to=%2Fr%2F${encodeURIComponent(community)}">message the moderators</a>`
         : 'message the moderators';
