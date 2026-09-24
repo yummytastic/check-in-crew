@@ -770,6 +770,7 @@
     ]
   },
   "forms": {
+    "dashboardConfirm": "/internal/form/dashboardConfirm",
     "choose": "/internal/form/choose",
     "bmiUnits": "/internal/form/bmiUnits",
     "bmiInputs": "/internal/form/bmiInputs",
