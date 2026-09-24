@@ -301,6 +301,11 @@ crew.post('/menu/dashboard', async (c) => {
       // Recreate the dashboard if the saved post was removed or unavailable.
     }
   }
+  if (!who.admin)
+    return c.json<UiResponse>({
+      showToast:
+        "Sorry, the dashboard isn't available at the moment. A moderator needs to create it.",
+    });
   return c.json(
     await form(
       who,
@@ -342,6 +347,10 @@ crew.post('/form/dashboardConfirm', async (c) => {
       // Recreate the dashboard if the saved post was removed or unavailable.
     }
   }
+  if (!who.admin)
+    throw Error(
+      "Sorry, the dashboard isn't available at the moment. A moderator needs to create it."
+    );
   const post = await reddit.submitCustomPost({
     subredditName: context.subredditName,
     title: 'Check-In Crew — Community tools & dashboard',

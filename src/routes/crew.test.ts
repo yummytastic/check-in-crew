@@ -1225,6 +1225,15 @@ void test('server form and automation integration', async (t) => {
       assert.equal(records.get(keys[0]!), unresolved);
     }
   );
+  await t.test('volunteers cannot create a missing dashboard post', async () => {
+    reset();
+    ctx.userId = 't2_volunteer';
+    const response = await request('/menu/dashboard');
+    assert.match(
+      response.showToast ?? '',
+      /dashboard isn't available.*moderator needs to create it/i
+    );
+  });
   await t.test(
     'series limit is configurable and enforced by both creation interfaces',
     async () => {
