@@ -24,6 +24,8 @@ export function createPublicView(
   let optionsLoaded = false;
   let publicFailed = false;
   let community = '';
+  let publicWelcome = '';
+  let authorisedWelcome = '';
   let view = 'home';
   let calculatorMode = 'calories';
   let helpFrom = 'home';
@@ -61,6 +63,31 @@ export function createPublicView(
     Number.isFinite(value) ? String(Math.round(value * 10000) / 10000) : '';
   const button = (id, label, secondary = false) =>
     `<button type="button" id="${id}"${secondary ? ' class="secondary"' : ''}>${label}</button>`;
+  const defaultPublicWelcome =
+    "{subreddit_link}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.";
+  const defaultAuthorisedWelcome =
+    "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.";
+  function renderWelcome(template) {
+    const subreddit = community ? `/r/${esc(community)}` : 'this subreddit';
+    const subredditLink = community
+      ? `<a href="https://www.reddit.com/r/${encodeURIComponent(community)}/">${subreddit}</a>`
+      : subreddit;
+    const modmail = community
+      ? `<a href="https://www.reddit.com/message/compose?to=%2Fr%2F${encodeURIComponent(community)}">message the moderators</a>`
+      : 'message the moderators';
+    return String(template || '')
+      .split(/(\{subreddit_link\}|\{modmail_link\}|\{subreddit\})/g)
+      .map((part) =>
+        part === '{subreddit_link}'
+          ? subredditLink
+          : part === '{modmail_link}'
+            ? modmail
+            : part === '{subreddit}'
+              ? subreddit
+              : esc(part)
+      )
+      .join('');
+  }
   const sources = [
     ['Mifflin–St Jeor study', 'https://pubmed.ncbi.nlm.nih.gov/2305711/'],
     [
@@ -116,16 +143,11 @@ export function createPublicView(
         failed: 'Could not check access. Please retry.',
         authorised: 'Your account has management access.',
       }[access];
-      const communityLabel = community
-        ? `<a href="https://www.reddit.com/r/${encodeURIComponent(community)}/">/r/${esc(community)}</a>`
-        : 'This community';
-      const modmail = community
-        ? `<a href="https://www.reddit.com/message/compose?to=%2Fr%2F${encodeURIComponent(community)}">message the moderators</a>`
-        : 'message the moderators';
-      const introduction =
+      const introduction = renderWelcome(
         access === 'authorised'
-          ? `${communityLabel}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please ${modmail}.`
-          : `${communityLabel}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please ${modmail}.`;
+          ? authorisedWelcome || defaultAuthorisedWelcome
+          : publicWelcome || defaultPublicWelcome
+      );
       content = `<p>${introduction}</p>${enabled ? `<section class="public-tools"><h2>Community tools</h2>${button('open-bmi', 'BMI calculator')}${button('open-calculator', 'TDEE calculator')}${flairEnabled ? button('public-set-flair', 'Set flair') : ''}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}${access === 'authorised' ? '' : `<p id="public-access-status" class="public-muted" role="status">${accessMessage}</p>`}`;
       const management =
         access === 'authorised'
@@ -483,6 +505,8 @@ export function createPublicView(
         view = 'home';
       }
       community = options.community ?? '';
+      publicWelcome = typeof options.publicWelcome === 'string' ? options.publicWelcome : '';
+      authorisedWelcome = typeof options.authorisedWelcome === 'string' ? options.authorisedWelcome : '';
       publicFailed = Boolean(options.failed);
         if (!optionsLoaded && !publicFailed) {
           optionsLoaded = true;

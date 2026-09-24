@@ -41,7 +41,7 @@ Moderators can enable **Community tools → Enable calorie needs and BMI calcula
 
 The calculator accepts age, formula sex, height, weight and activity. Height and weight units are independent: choose centimetres or feet/inches for height, and kilograms, pounds, or stone/pounds for weight. Switching units converts entered measurements without changing the calculation; stone must be whole, with the remaining pounds from 0 to under 14. **Calculate** replaces the form with estimated maintenance calories and BMI to one decimal place. **Edit details**, **Back to home** and the help views retain the current inputs. BMI has no categories, colour scale, target ranges or weight recommendations; there are no calorie-deficit prescriptions.
 
-All measurements and results remain in memory on the device. The calculator does not send them to the server, write them to browser storage, log them or associate them with Reddit accounts. Reloading starts a fresh calculator. Public network responses contain only the community name, calculator availability and an access outcome; source navigation contains no measurements.
+All measurements and results remain in memory on the device. The calculator does not send them to the server, write them to browser storage, log them or associate them with Reddit accounts. Reloading starts a fresh calculator. Public network responses contain the community name, calculator availability and community welcome copy, plus an access outcome; source navigation contains no measurements.
 
 The public flow is designed for the embedded post, with separate home, inputs, results and help screens. Local browser checks cover widths from 320–720 pixels at heights of 400 and 512 pixels. Essential navigation remains visible; scrolling is available for enlarged text or smaller windows. Reddit mobile clients still require playtesting on-device.
 
@@ -55,13 +55,13 @@ Resting energy is multiplied by 1.2, 1.375, 1.55, 1.725 or 1.9 according to the 
 
 ## Set your own flair
 
-**Set flair** appears at the bottom right of the calculator/public home, immediately before **Open dashboard** or **About Check-In Crew**. From the embedded post, it opens its own full-screen panel, like the dashboard, with no nested app scrollbar; Back closes the panel. It never copies calculator inputs and has no BMI or calorie components. Sign in to Reddit to use it; series-management access is not required.
+**Set flair** appears in the Community tools section of the public home. From the embedded post, it opens its own full-screen panel, like the dashboard, with no nested app scrollbar; Back closes the panel. It never copies calculator inputs and has no BMI or calorie components. Sign in to Reddit to use it; series-management access is not required.
 
 Choose a named format, fill only the fields it uses, and check the live preview. **Review flair → Apply flair** explicitly replaces your current public flair in this community. The current text is shown first. Empty optional fields and attached labels such as `SW:` disappear; the final text must fit 64 characters. Weight and height fields append selected units; enter the measurement in those units (the flair form labels values, rather than converting them). Reddit may change the styling to the configured template.
 
 In app settings:
 
-- **Community tools → Enable Set flair** controls availability; enabled by default. It is hidden and cannot run when Reddit user flair is disabled for the community.
+- **Community tools → Enable Set flair** controls availability; enabled by default. It is hidden and cannot run when Reddit user flair is disabled for the community. **Public welcome message** and **Welcome message for dashboard users** customise the landing copy. Use `{subreddit_link}` and `{modmail_link}` for safe community-specific links; `{subreddit}` is also available as plain text.
 - **Allow Set flair when Reddit self-assignment is off** is off by default. Turn it on only when the community deliberately wants members to receive flair through this app while Reddit’s normal self-assignment setting remains off. It never overrides Reddit’s separate user-flair enablement setting or uses moderator-only templates.
 - **Allow Set flair to replace existing flair** is off by default. Reddit’s public API does not reveal the template attached to a member’s existing flair, so Check-In Crew protects all existing flair unless moderators explicitly opt in. This means a newly flaired member may need a moderator to clear or change an existing flair before using this tool.
 - **Flair field 1–8** defines each member-facing label, input type (short text, whole number, weight, height, disabled), optional help, and whether it is required. A blank label also disables a field. Defaults are age, gender, starting/current/goal weight, height and personal text, with field 8 unused.

@@ -232,6 +232,18 @@
             "label": "Allow Set flair to replace existing flair",
             "defaultValue": false,
             "helpText": "Off by default. Check-In Crew protects all existing flair because Reddit’s public API does not identify the current flair template. Enable only if moderators have confirmed that replacing members’ existing flair is appropriate. Moderator-only flair with the same exact template text remains protected."
+          },
+          "publicWelcomeMessage": {
+            "type": "paragraph",
+            "label": "Public welcome message",
+            "defaultValue": "{subreddit_link}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.",
+            "helpText": "Shown to visitors without dashboard access. Use {subreddit_link} for a safe link to this subreddit and {modmail_link} for a safe link to modmail. Keep the message under 1,000 characters."
+          },
+          "authorisedWelcomeMessage": {
+            "type": "paragraph",
+            "label": "Welcome message for dashboard users",
+            "defaultValue": "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.",
+            "helpText": "Shown to moderators and assigned volunteers. Use {subreddit_link} for a safe link to this subreddit and {modmail_link} for a safe link to modmail. Keep the message under 1,000 characters."
           }
         }
       },

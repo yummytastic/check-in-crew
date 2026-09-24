@@ -529,12 +529,29 @@ void test('server form and automation integration', async (t) => {
         calculatorEnabled: false,
         flairEnabled: true,
         community: 'loseit_test',
+        publicWelcome:
+          "{subreddit_link}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.",
+        authorisedWelcome:
+          "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.",
       });
       installationSettings.set('enableCommunityCalculator', true);
       assert.deepEqual((await read('/public')).data, {
         calculatorEnabled: true,
         flairEnabled: true,
         community: 'loseit_test',
+        publicWelcome:
+          "{subreddit_link}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.",
+        authorisedWelcome:
+          "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.",
+      });
+      installationSettings.set('publicWelcomeMessage', 'Welcome to {subreddit_link}; {modmail_link}.');
+      installationSettings.set('authorisedWelcomeMessage', 'Dashboard access for {subreddit}.');
+      assert.deepEqual((await read('/public')).data, {
+        calculatorEnabled: true,
+        flairEnabled: true,
+        community: 'loseit_test',
+        publicWelcome: 'Welcome to {subreddit_link}; {modmail_link}.',
+        authorisedWelcome: 'Dashboard access for {subreddit}.',
       });
       assert.deepEqual((await read('/access')).data, { access: 'signed-out' });
       assert.equal((await read('/dashboard')).status, 400);

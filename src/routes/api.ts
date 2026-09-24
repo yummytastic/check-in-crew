@@ -63,14 +63,30 @@ import {
 
 export const api = new Hono();
 api.route('/flair', flair);
-// Public responses deliberately contain no configuration, account names or history.
+const defaultPublicWelcome =
+  '{subreddit_link}\'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.';
+const defaultAuthorisedWelcome =
+  '{subreddit_link}\'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.';
+async function welcomeSetting(key: string, fallback: string): Promise<string> {
+  const value = await settings.get<string>(key);
+  return typeof value === 'string' && value.trim() && value.length <= 1000 && !/[\r\n]/.test(value)
+    ? value
+    : fallback;
+}
+// Public responses contain only community-facing options and copy, never account names or history.
 api.get('/public', async (c) => {
   c.header('Cache-Control', 'no-store');
   const enabled = await settings.get('enableCommunityCalculator');
+  const [publicWelcome, authorisedWelcome] = await Promise.all([
+    welcomeSetting('publicWelcomeMessage', defaultPublicWelcome),
+    welcomeSetting('authorisedWelcomeMessage', defaultAuthorisedWelcome),
+  ]);
   return c.json({
     calculatorEnabled: enabled === true || enabled === 'true',
     flairEnabled: await flairAvailable(),
     community: context.subredditName,
+    publicWelcome,
+    authorisedWelcome,
   });
 });
 api.get('/access', async (c) => {
