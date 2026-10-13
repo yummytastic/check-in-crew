@@ -17,6 +17,7 @@ export function createPublicView(
 ) {
   let access = 'checking';
   let flairEnabled = false;
+  let moderator = false;
   let dashboardOpening = false;
   let flairFrom = 'home';
   const flairView = createFlairView(root, { back: () => go(flairFrom) });
@@ -148,7 +149,7 @@ export function createPublicView(
           ? authorisedWelcome || defaultAuthorisedWelcome
           : publicWelcome || defaultPublicWelcome
       );
-      content = `<p>${introduction}</p>${enabled ? `<section class="public-tools"><h2>Community tools</h2>${button('open-bmi', 'BMI calculator')}${button('open-calculator', 'TDEE calculator')}${flairEnabled ? button('public-set-flair', 'Set flair') : ''}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}${access === 'authorised' ? '' : `<p id="public-access-status" class="public-muted" role="status">${accessMessage}</p>`}`;
+      content = `<p>${introduction}</p>${enabled ? `<section class="public-tools"><h2>Community tools</h2>${button('open-bmi', 'BMI calculator')}${button('open-calculator', 'TDEE calculator')}${flairEnabled ? button('public-set-flair', 'Set flair') : ''}</section>` : ''}${moderator ? `<section class="public-tools moderator-tools"><h2>Moderator tools</h2>${button('open-moderator-tools', 'Open moderator tools', true)}</section>` : ''}${publicFailed ? '<p>Community tools could not be loaded. Try checking again.</p>' : ''}${access === 'authorised' ? '' : `<p id="public-access-status" class="public-muted" role="status">${accessMessage}</p>`}`;
       const management =
         access === 'authorised'
           ? button('public-open-dashboard', 'Open dashboard', true)
@@ -263,6 +264,7 @@ export function createPublicView(
       void checkAccess();
     });
     bind('public-open-dashboard', openDashboard);
+    bind('open-moderator-tools', openDashboard);
     if (root.querySelector('#public-check-access'))
       root.querySelector('#public-check-access').disabled =
         access === 'checking';
@@ -500,6 +502,7 @@ export function createPublicView(
     setOptions(options) {
       enabled = options.calculatorEnabled === true;
       flairEnabled = options.flairEnabled === true;
+      moderator = options.moderator === true;
       if (!flairEnabled && view === 'flair') {
         flairView.cancel();
         view = 'home';

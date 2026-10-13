@@ -161,12 +161,17 @@ api.get('/public', async (c) => {
     welcomeSetting('publicWelcomeMessage', defaultPublicWelcome),
     welcomeSetting('authorisedWelcomeMessage', defaultAuthorisedWelcome),
   ]);
+  let moderator = false;
+  if (context.userId) {
+    try { moderator = (await identity()).admin; } catch { moderator = false; }
+  }
   return c.json({
     calculatorEnabled: enabled === true || enabled === 'true',
     flairEnabled: await flairAvailable(),
     community: context.subredditName,
     publicWelcome,
     authorisedWelcome,
+    moderator,
   });
 });
 api.get('/access', async (c) => {
