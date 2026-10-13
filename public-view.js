@@ -18,6 +18,10 @@ export function createPublicView(
   let access = 'checking';
   let flairEnabled = false;
   let moderator = false;
+  let moderatorToolsLoading = false;
+  let moderatorToolsData;
+  let moderatorToolsError = '';
+  let moderatorToolsStatus = '';
   let dashboardOpening = false;
   let flairFrom = 'home';
   const flairView = createFlairView(root, { back: () => go(flairFrom) });
@@ -105,6 +109,63 @@ export function createPublicView(
     render();
     root.querySelector('h1, h2')?.focus({ preventScroll: true });
   }
+  async function openModeratorTools() {
+    view = 'moderator-tools';
+    moderatorToolsLoading = true;
+    moderatorToolsError = '';
+    moderatorToolsStatus = '';
+    render();
+    try {
+      const response = await fetch('/api/dashboard/teen-guidance');
+      const data = await response.json();
+      if (!response.ok)
+        throw Error(data.error || 'Unable to load moderator tools.');
+      moderatorToolsData = data;
+    } catch (error) {
+      moderatorToolsError = error.message;
+    } finally {
+      moderatorToolsLoading = false;
+      render();
+    }
+  }
+  async function saveModeratorTools() {
+    const screen = root.querySelector('[data-public-screen="moderator-tools"]');
+    if (!screen) return;
+    moderatorToolsStatus = 'Saving…';
+    moderatorToolsError = '';
+    render();
+    try {
+      const response = await fetch('/api/dashboard/teen-guidance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: screen.querySelector('#moderator-guidance-enabled').checked,
+          removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
+          flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
+          flairText: screen.querySelector('#moderator-guidance-flair-text').value,
+          messageOverride: screen.querySelector('#moderator-guidance-message').value,
+          autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok)
+        throw Error(data.error || 'Unable to save moderator tools.');
+      moderatorToolsData = {
+        ...moderatorToolsData,
+        enabled: screen.querySelector('#moderator-guidance-enabled').checked,
+        removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
+        flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
+        flairText: screen.querySelector('#moderator-guidance-flair-text').value,
+        messageOverride: screen.querySelector('#moderator-guidance-message').value,
+        autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
+      };
+      moderatorToolsStatus = 'Saved.';
+    } catch (error) {
+      moderatorToolsError = error.message;
+      moderatorToolsStatus = '';
+    }
+    render();
+  }
   function help() {
     helpFrom = view;
     helpTab = 'basics';
@@ -159,6 +220,22 @@ export function createPublicView(
               true
             );
       footer = button('public-about', 'About Check-In Crew', true) + management;
+    } else if (view === 'moderator-tools') {
+      heading = 'Moderator tools';
+      const data = moderatorToolsData;
+      content = moderatorToolsLoading
+        ? '<p role="status">Loading moderator tools…</p>'
+        : moderatorToolsError
+          ? `<p class="notice error" role="alert">${esc(moderatorToolsError)}</p>`
+          : data
+            ? `<section class="public-tools"><h2>Teenage weight-loss guidance</h2><p class="public-muted">Configure the moderator-only one-click post action. It adds the selected Reddit removal note, posts and locks the guidance comment, applies the flair, and can approve the post.</p><label class="checkbox-label"><input id="moderator-guidance-enabled" type="checkbox" ${data.enabled ? 'checked' : ''}> Enable post action</label><label>Removal reason<select id="moderator-guidance-reason"><option value="">Choose a removal reason</option>${data.reasons.map((item) => `<option value="${esc(item.id)}" ${item.id === data.removalReasonId ? 'selected' : ''}>${esc(item.title)}${item.message ? `: ${esc(item.message)}` : ''}</option>`).join('')}</select></label><label>Post flair<select id="moderator-guidance-flair"><option value="">Choose a post flair</option>${data.flairs.map((item) => `<option value="${esc(item.id)}" ${item.id === data.flairTemplateId ? 'selected' : ''}>${esc(item.text || item.id)}</option>`).join('')}</select></label><label>Custom flair text (optional)<input id="moderator-guidance-flair-text" maxlength="64" value="${esc(data.flairText)}"></label><label>Guidance comment override (optional)<textarea id="moderator-guidance-message" maxlength="1000" rows="5" placeholder="Leave blank to use the selected removal reason message.">${esc(data.messageOverride)}</textarea></label><label class="checkbox-label"><input id="moderator-guidance-approve" type="checkbox" ${data.autoApprove ? 'checked' : ''}> Approve the post after guidance is added</label>${moderatorToolsStatus ? `<p class="public-muted" role="status">${esc(moderatorToolsStatus)}</p>` : ''}</section>`
+            : '<p class="notice error">Moderator tools are unavailable.</p>';
+      footer =
+        (!moderatorToolsLoading && data && !moderatorToolsError
+          ? button('moderator-tools-save', 'Save settings')
+          : moderatorToolsError
+            ? button('moderator-tools-retry', 'Try again')
+            : '') + button('moderator-tools-back', 'Back', true);
     } else if (view === 'about') {
       heading = 'About Check-In Crew';
       content = '<p>Check-In Crew helps moderators and volunteer hosts run scheduled community check-ins and recurring posts.</p><p>You can use the available calculator and flair tools. If you have questions or need management access, contact the community moderators through modmail.</p>';
@@ -264,7 +341,10 @@ export function createPublicView(
       void checkAccess();
     });
     bind('public-open-dashboard', openDashboard);
-    bind('open-moderator-tools', openDashboard);
+    bind('open-moderator-tools', () => void openModeratorTools());
+    bind('moderator-tools-save', () => void saveModeratorTools());
+    bind('moderator-tools-retry', () => void openModeratorTools());
+    bind('moderator-tools-back', () => go('home'));
     if (root.querySelector('#public-check-access'))
       root.querySelector('#public-check-access').disabled =
         access === 'checking';

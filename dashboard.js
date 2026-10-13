@@ -63,7 +63,6 @@ async function loadPublicOptions() {
 const app = document.querySelector('#app');
 const message = document.querySelector('#message');
 const adminTools = document.querySelector('#admin-tools');
-const guidanceTools = document.querySelector('#guidance-tools');
 const privacyTools = document.querySelector('#privacy-tools');
 const createPanel = document.querySelector('#create-panel');
 const month = { value: '' };
@@ -311,8 +310,6 @@ async function load({ preserveDrafts = false, savedGroup } = {}) {
       state = undefined;
       app.innerHTML = '';
       adminTools.innerHTML = '';
-      guidanceTools.innerHTML = '';
-      guidanceTools.hidden = true;
       dirtyGroups.clear();
       publicView.setDashboardOpening(false);
       return false;
@@ -660,34 +657,6 @@ function privacyDeletionMarkup() {
     : `Removing saved identifiers and host credits from ${job.pendingPosts} recorded posts.`;
   return `<div class="notice ${job.state === 'failed' ? 'error' : ''}"><strong>Personal-data deletion ${job.state === 'failed' ? 'needs attention' : 'in progress'}</strong><p>${progress}</p>${job.error ? `<p>${esc(job.error)}</p><button class="quiet-link" id="retry-personal-data-deletion">Retry cleanup</button>` : ''}</div>`;
 }
-let teenGuidanceData;
-function teenGuidanceMarkup() {
-  if (!state.admin) return '';
-  return `<section class="edit-section dashboard-tool" data-edit-group="teen-guidance"><h2>Teenage weight-loss guidance</h2><p class="muted">The moderator-only post action temporarily removes a post, adds the selected subreddit removal note, posts and locks this guidance comment, applies the selected flair, then approves the post when enabled. Choose the live Reddit settings here; the post menu uses them in one click.</p><div id="teen-guidance-fields"><p class="muted">Loading current removal reasons and post flairs…</p></div></section>`;
-}
-async function loadTeenGuidance() {
-  const root = document.querySelector('#teen-guidance-fields');
-  if (!root) return;
-  try {
-    const response = await fetch('/api/dashboard/teen-guidance');
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error || 'Unable to load guidance settings.');
-    teenGuidanceData = data;
-    root.innerHTML = `<label class="checkbox-label"><input id="teen-guidance-enabled" type="checkbox" ${data.enabled ? 'checked' : ''}> Enable moderator-only post action</label><label>Removal reason<select id="teen-guidance-reason"><option value="">Choose a removal reason</option>${data.reasons.map((item) => `<option value="${esc(item.id)}" ${item.id === data.removalReasonId ? 'selected' : ''}>${esc(item.title)}${item.message ? `: ${esc(item.message)}` : ''}</option>`).join('')}</select></label><label>Post flair<select id="teen-guidance-flair"><option value="">Choose a post flair</option>${data.flairs.map((item) => `<option value="${esc(item.id)}" ${item.id === data.flairTemplateId ? 'selected' : ''}>${esc(item.text || item.id)}</option>`).join('')}</select></label><label>Custom flair text (optional)<input id="teen-guidance-flair-text" maxlength="64" value="${esc(data.flairText)}"></label><label>Guidance comment override (optional)<textarea id="teen-guidance-message" maxlength="1000" rows="4" placeholder="Leave blank to use the selected removal reason message.">${esc(data.messageOverride)}</textarea></label><label class="checkbox-label"><input id="teen-guidance-approve" type="checkbox" ${data.autoApprove ? 'checked' : ''}> Approve the post after guidance is added</label><div class="actions"><button id="teen-guidance-save">Save guidance settings</button><p id="teen-guidance-status" class="save-status muted" role="status"></p></div>`;
-    root.querySelector('#teen-guidance-save').addEventListener('click', saveTeenGuidance);
-  } catch (error) { root.innerHTML = `<p class="notice error">${esc(error.message)}</p>`; }
-}
-async function saveTeenGuidance() {
-  const root = document.querySelector('#teen-guidance-fields');
-  const status = root.querySelector('#teen-guidance-status');
-  status.textContent = 'Saving…';
-  try {
-    const response = await fetch('/api/dashboard/teen-guidance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: root.querySelector('#teen-guidance-enabled').checked, removalReasonId: root.querySelector('#teen-guidance-reason').value, flairTemplateId: root.querySelector('#teen-guidance-flair').value, flairText: root.querySelector('#teen-guidance-flair-text').value, messageOverride: root.querySelector('#teen-guidance-message').value, autoApprove: root.querySelector('#teen-guidance-approve').checked }) });
-    const data = await response.json();
-    if (!response.ok) throw Error(data.error || 'Unable to save guidance settings.');
-    status.textContent = 'Saved.';
-  } catch (error) { status.textContent = error.message; status.className = 'save-status error'; }
-}
 function openPersonalDataDeletionDialog() {
   const existing = document.querySelector('#personal-data-deletion-dialog');
   if (existing) existing.remove();
@@ -845,7 +814,6 @@ function render() {
     adminTools.innerHTML =
       '<button id="open-full-dashboard">Open full dashboard</button>';
     privacyTools.hidden = true;
-    guidanceTools.hidden = true;
     app.innerHTML = state.series
       .map(
         (series) =>
@@ -879,7 +847,6 @@ function render() {
   );
   if (seriesView === 'archived') {
     adminTools.innerHTML = '';
-    guidanceTools.hidden = true;
     privacyTools.innerHTML = privacyDeletionMarkup();
     privacyTools.hidden = !state.admin;
     createPanel.hidden = true;
@@ -981,11 +948,8 @@ function render() {
   adminTools.innerHTML = state.admin
     ? `<button id="new-series" ${state.seriesCount >= state.seriesLimit ? 'disabled' : ''}>Create a new series</button>`
     : '';
-  guidanceTools.innerHTML = teenGuidanceMarkup();
-  guidanceTools.hidden = !state.admin;
   privacyTools.innerHTML = privacyDeletionMarkup();
   privacyTools.hidden = !state.admin;
-  if (state.admin) void loadTeenGuidance();
   capacity.textContent = `${state.seriesCount} of ${state.seriesLimit} series used. Paused series count; archived series do not. Change the limit in app settings.`;
   if (!state.series.length)
     app.innerHTML =
