@@ -314,7 +314,10 @@ crew.post('/menu/teenGuidance', async (c) => {
   const message = configured.messageOverride || (typeof reason.message === 'string' ? reason.message : '') || (typeof legacyMessage === 'string' ? legacyMessage : '');
   if (!message.trim()) return c.json<UiResponse>({ showToast: 'Set a guidance message in the dashboard first.' });
   await post.remove(false);
-  await post.addRemovalNote({ reasonId: configured.removalReasonId });
+  await post.addRemovalNote({
+    reasonId: configured.removalReasonId,
+    modNote: (reason.title || 'Teenage weight-loss guidance').slice(0, 100),
+  });
   const comment = await post.addComment({ text: message.trim() });
   await comment.distinguish(false);
   await comment.lock();
@@ -340,7 +343,8 @@ crew.post('/form/teenGuidance', async (c) => {
     subreddit.getRemovalReasons(),
     reddit.getPostFlairTemplates(context.subredditName),
   ]);
-  if (!reasons.some((reason) => reason.id === reasonId))
+  const reason = reasons.find((reason) => reason.id === reasonId);
+  if (!reason)
     throw Error('That removal reason is no longer available. Reopen the action and choose again.');
   if (!flairs.some((flair) => flair.id === flairTemplateId))
     throw Error('That post flair is no longer available. Reopen the action and choose again.');
@@ -348,7 +352,10 @@ crew.post('/form/teenGuidance', async (c) => {
   if (post.subredditName.toLowerCase() !== context.subredditName.toLowerCase())
     throw Error('This post belongs to another community.');
   await post.remove(false);
-  await post.addRemovalNote({ reasonId });
+  await post.addRemovalNote({
+    reasonId,
+    modNote: (reason.title || 'Teenage weight-loss guidance').slice(0, 100),
+  });
   const comment = await post.addComment({ text: message.trim() });
   await comment.distinguish(false);
   await comment.lock();

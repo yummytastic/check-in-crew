@@ -42,8 +42,10 @@ let fakePost = {
     this.removed = true;
     guidanceEvents.push('remove');
   },
-  async addRemovalNote({ reasonId }: { reasonId: string }) {
+  async addRemovalNote({ reasonId, modNote }: { reasonId: string; modNote?: string }) {
+    if (!modNote) throw Error('mod_note is required');
     guidanceEvents.push('reason:' + reasonId);
+    guidanceEvents.push('note:' + modNote);
   },
   async addComment({ text }: { text: string }) {
     guidanceEvents.push('comment:' + text);
@@ -382,6 +384,7 @@ void test('teen guidance selects live reason and flair, then approves by default
   assert.deepEqual(guidanceEvents, [
     'remove',
     'reason:reason-teen',
+    'note:Teenage weight loss',
     'comment:Teenage guidance message for testing.',
     'distinguish',
     'comment-lock',
