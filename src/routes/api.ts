@@ -75,10 +75,8 @@ async function welcomeSetting(key: string, fallback: string): Promise<string> {
 }
 const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
 type TeenGuidanceConfig = {
-  enabled: boolean;
   removalReasonId: string;
   flairTemplateId: string;
-  flairText: string;
   messageOverride: string;
   autoApprove: boolean;
 };
@@ -86,10 +84,8 @@ const requireAdmin = (who: Awaited<ReturnType<typeof identity>>) => {
   if (!who.admin) throw new Error('Moderator access is required.');
 };
 const defaultTeenGuidance: TeenGuidanceConfig = {
-  enabled: true,
   removalReasonId: '',
   flairTemplateId: '',
-  flairText: '',
   messageOverride: '',
   autoApprove: true,
 };
@@ -99,10 +95,8 @@ async function teenGuidanceConfig(): Promise<TeenGuidanceConfig> {
   try {
     const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
     return {
-      enabled: value.enabled !== false,
       removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
       flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
-      flairText: typeof value.flairText === 'string' ? value.flairText : '',
       messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '',
       autoApprove: value.autoApprove !== false,
     };
@@ -138,15 +132,11 @@ api.post('/dashboard/teen-guidance', async (c) => {
   const flairTemplateId = typeof body.flairTemplateId === 'string' ? body.flairTemplateId : '';
   if (removalReasonId && !reasons.some((reason) => reason.id === removalReasonId)) throw Error('Choose a current removal reason.');
   if (flairTemplateId && !flairs.some((flair) => flair.id === flairTemplateId)) throw Error('Choose a current post flair.');
-  const flairText = typeof body.flairText === 'string' ? body.flairText.trim() : '';
-  if (flairText.length > 64) throw Error('Custom flair text must be 64 characters or fewer.');
   const messageOverride = typeof body.messageOverride === 'string' ? body.messageOverride.trim() : '';
-  if (messageOverride.length > 1000) throw Error('The guidance message must be 1000 characters or fewer.');
+  if (messageOverride.length > 10_000) throw Error('The guidance message must be 10,000 characters or fewer.');
   const saved: TeenGuidanceConfig = {
-    enabled: body.enabled === true,
     removalReasonId,
     flairTemplateId,
-    flairText,
     messageOverride,
     autoApprove: body.autoApprove !== false,
   };

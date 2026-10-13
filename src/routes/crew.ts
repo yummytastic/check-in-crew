@@ -93,14 +93,14 @@ const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
 const BMI_MODERATORS_ONLY_SETTING = 'communityCalculatorModeratorsOnly';
 const TEEN_GUIDANCE_MESSAGE_SETTING = 'teenGuidanceMessage';
 const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
-type TeenGuidanceConfig = { enabled: boolean; removalReasonId: string; flairTemplateId: string; flairText: string; messageOverride: string; autoApprove: boolean };
+type TeenGuidanceConfig = { removalReasonId: string; flairTemplateId: string; messageOverride: string; autoApprove: boolean };
 async function savedTeenGuidance(): Promise<TeenGuidanceConfig> {
   const raw = await redis.get(TEEN_GUIDANCE_KEY);
-  if (!raw) return { enabled: true, removalReasonId: '', flairTemplateId: '', flairText: '', messageOverride: '', autoApprove: true };
+  if (!raw) return { removalReasonId: '', flairTemplateId: '', messageOverride: '', autoApprove: true };
   try {
     const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
-    return { enabled: value.enabled !== false, removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '', flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '', flairText: typeof value.flairText === 'string' ? value.flairText : '', messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '', autoApprove: value.autoApprove !== false };
-  } catch { return { enabled: true, removalReasonId: '', flairTemplateId: '', flairText: '', messageOverride: '', autoApprove: true }; }
+    return { removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '', flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '', messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '', autoApprove: value.autoApprove !== false };
+  } catch { return { removalReasonId: '', flairTemplateId: '', messageOverride: '', autoApprove: true }; }
 }
 
 async function targetText(targetId: string): Promise<string> {
@@ -290,10 +290,6 @@ crew.post('/menu/bmi', async (c) => {
 });
 crew.post('/menu/teenGuidance', async (c) => {
   const configured = await savedTeenGuidance();
-  if (!configured.enabled)
-    return c.json<UiResponse>({
-      showToast: 'Teenage weight-loss guidance is disabled in this community.',
-    });
   const who = await identity();
   adminOnly(who);
   const body = await c.req.json<{ targetId?: unknown }>();
@@ -322,7 +318,7 @@ crew.post('/menu/teenGuidance', async (c) => {
   const comment = await post.addComment({ text: message.trim() });
   await comment.distinguish(false);
   await comment.lock();
-  await reddit.setPostFlair({ subredditName: context.subredditName, postId: post.id, flairTemplateId: configured.flairTemplateId, ...(configured.flairText ? { text: configured.flairText } : {}) });
+  await reddit.setPostFlair({ subredditName: context.subredditName, postId: post.id, flairTemplateId: configured.flairTemplateId });
   if (configured.autoApprove) await post.approve();
   return c.json<UiResponse>({ showToast: configured.autoApprove ? 'Guidance added, post flaired, and post approved.' : 'Guidance added and post flaired.' });
 });

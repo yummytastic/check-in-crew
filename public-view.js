@@ -139,11 +139,11 @@ export function createPublicView(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          enabled: screen.querySelector('#moderator-guidance-enabled').checked,
           removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
           flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
-          flairText: screen.querySelector('#moderator-guidance-flair-text').value,
-          messageOverride: screen.querySelector('#moderator-guidance-message').value,
+          messageOverride: screen.querySelector('#moderator-guidance-custom').checked
+            ? screen.querySelector('#moderator-guidance-message').value
+            : '',
           autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
         }),
       });
@@ -152,11 +152,11 @@ export function createPublicView(
         throw Error(data.error || 'Unable to save moderator tools.');
       moderatorToolsData = {
         ...moderatorToolsData,
-        enabled: screen.querySelector('#moderator-guidance-enabled').checked,
         removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
         flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
-        flairText: screen.querySelector('#moderator-guidance-flair-text').value,
-        messageOverride: screen.querySelector('#moderator-guidance-message').value,
+        messageOverride: screen.querySelector('#moderator-guidance-custom').checked
+          ? screen.querySelector('#moderator-guidance-message').value
+          : '',
         autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
       };
       moderatorToolsStatus = 'Saved.';
@@ -228,7 +228,7 @@ export function createPublicView(
         : moderatorToolsError
           ? `<p class="notice error" role="alert">${esc(moderatorToolsError)}</p>`
           : data
-            ? `<section class="public-tools"><h2>Teenage weight-loss guidance</h2><p class="public-muted">Configure the moderator-only one-click post action. It adds the selected Reddit removal note, posts and locks the guidance comment, applies the flair, and can approve the post.</p><label class="checkbox-label"><input id="moderator-guidance-enabled" type="checkbox" ${data.enabled ? 'checked' : ''}> Enable post action</label><label>Removal reason<select id="moderator-guidance-reason"><option value="">Choose a removal reason</option>${data.reasons.map((item) => `<option value="${esc(item.id)}" ${item.id === data.removalReasonId ? 'selected' : ''}>${esc(item.title)}${item.message ? `: ${esc(item.message)}` : ''}</option>`).join('')}</select></label><label>Post flair<select id="moderator-guidance-flair"><option value="">Choose a post flair</option>${data.flairs.map((item) => `<option value="${esc(item.id)}" ${item.id === data.flairTemplateId ? 'selected' : ''}>${esc(item.text || item.id)}</option>`).join('')}</select></label><label>Custom flair text (optional)<input id="moderator-guidance-flair-text" maxlength="64" value="${esc(data.flairText)}"></label><label>Guidance comment override (optional)<textarea id="moderator-guidance-message" maxlength="1000" rows="5" placeholder="Leave blank to use the selected removal reason message.">${esc(data.messageOverride)}</textarea></label><label class="checkbox-label"><input id="moderator-guidance-approve" type="checkbox" ${data.autoApprove ? 'checked' : ''}> Approve the post after guidance is added</label>${moderatorToolsStatus ? `<p class="public-muted" role="status">${esc(moderatorToolsStatus)}</p>` : ''}</section>`
+            ? `<section class="public-tools"><h2>Teenage weight-loss guidance</h2><p class="public-muted">Configure the moderator-only one-click post action. It adds the selected Reddit removal note, posts and locks the guidance comment, applies the selected subreddit flair, and can approve the post.</p><label>Removal reason<select id="moderator-guidance-reason"><option value="">Choose a removal reason</option>${data.reasons.map((item) => `<option value="${esc(item.id)}" ${item.id === data.removalReasonId ? 'selected' : ''}>${esc(item.title)}</option>`).join('')}</select></label><label>Post flair<select id="moderator-guidance-flair"><option value="">Choose a post flair</option>${data.flairs.map((item) => `<option value="${esc(item.id)}" ${item.id === data.flairTemplateId ? 'selected' : ''}>${esc(item.text || item.id)}</option>`).join('')}</select></label><label class="checkbox-label"><input id="moderator-guidance-custom" type="checkbox" ${data.messageOverride ? 'checked' : ''}> Use a custom guidance comment</label><label>Guidance comment<textarea id="moderator-guidance-message" maxlength="10000" rows="7" ${data.messageOverride ? '' : 'readonly'}>${esc(data.messageOverride || data.reasons.find((item) => item.id === data.removalReasonId)?.message || '')}</textarea></label><label class="checkbox-label"><input id="moderator-guidance-approve" type="checkbox" ${data.autoApprove ? 'checked' : ''}> Approve the post after guidance is added</label>${moderatorToolsStatus ? `<p class="public-muted" role="status">${esc(moderatorToolsStatus)}</p>` : ''}</section>`
             : '<p class="notice error">Moderator tools are unavailable.</p>';
       footer =
         (!moderatorToolsLoading && data && !moderatorToolsError
@@ -345,6 +345,21 @@ export function createPublicView(
     bind('moderator-tools-save', () => void saveModeratorTools());
     bind('moderator-tools-retry', () => void openModeratorTools());
     bind('moderator-tools-back', () => go('home'));
+    const guidanceReason = root.querySelector('#moderator-guidance-reason');
+    const guidanceCustom = root.querySelector('#moderator-guidance-custom');
+    const guidanceMessage = root.querySelector('#moderator-guidance-message');
+    const selectedReasonMessage = () =>
+      moderatorToolsData?.reasons.find(
+        (item) => item.id === guidanceReason?.value
+      )?.message ?? '';
+    guidanceReason?.addEventListener('change', () => {
+      if (!guidanceCustom.checked) guidanceMessage.value = selectedReasonMessage();
+    });
+    guidanceCustom?.addEventListener('change', () => {
+      guidanceMessage.readOnly = !guidanceCustom.checked;
+      if (!guidanceCustom.checked) guidanceMessage.value = selectedReasonMessage();
+      else guidanceMessage.focus();
+    });
     if (root.querySelector('#public-check-access'))
       root.querySelector('#public-check-access').disabled =
         access === 'checking';
