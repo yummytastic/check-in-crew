@@ -91,6 +91,9 @@ const adminOnly = (who: Identity) => {
 const DASHBOARD_KEY = 'crew:dashboard:v1';
 const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
 const BMI_MODERATORS_ONLY_SETTING = 'communityCalculatorModeratorsOnly';
+const TEEN_GUIDANCE_ENABLED_SETTING = 'enableTeenGuidanceAction';
+const TEEN_GUIDANCE_MESSAGE_SETTING = 'teenGuidanceMessage';
+const TEEN_GUIDANCE_AUTO_APPROVE_SETTING = 'teenGuidanceAutoApprove';
 
 async function targetText(targetId: string): Promise<string> {
   try {
@@ -276,6 +279,106 @@ crew.post('/menu/bmi', async (c) => {
       'Calculator'
     )
   );
+});
+crew.post('/menu/teenGuidance', async (c) => {
+  const enabled = await settings.get(TEEN_GUIDANCE_ENABLED_SETTING);
+  if (!(enabled === true || enabled === 'true'))
+    return c.json<UiResponse>({
+      showToast: 'Teenage weight-loss guidance is disabled in this community.',
+    });
+  const who = await identity();
+  adminOnly(who);
+  const body = await c.req.json<{ targetId?: unknown }>();
+  const targetId = typeof body.targetId === 'string' ? body.targetId : '';
+  if (!/^t3_[A-Za-z0-9]+$/.test(targetId))
+    return c.json<UiResponse>({ showToast: 'This action must be opened from a post.' });
+  const post = await reddit.getPostById(targetId as `t3_${string}`);
+  if (post.subredditName.toLowerCase() !== context.subredditName.toLowerCase())
+    return c.json<UiResponse>({ showToast: 'This post belongs to another community.' });
+  const subreddit = await reddit.getSubredditByName(context.subredditName);
+  const [reasons, flairs] = await Promise.all([
+    subreddit.getRemovalReasons(),
+    reddit.getPostFlairTemplates(context.subredditName),
+  ]);
+  if (!reasons.length)
+    return c.json<UiResponse>({ showToast: 'Create a subreddit removal reason before using this action.' });
+  if (!flairs.length)
+    return c.json<UiResponse>({ showToast: 'Create a post flair template before using this action.' });
+  const autoApprove = await settings.get(TEEN_GUIDANCE_AUTO_APPROVE_SETTING);
+  return c.json(
+    await form(
+      who,
+      'teenGuidance',
+      0,
+      targetId,
+      'Apply teenage weight-loss guidance',
+      [
+        select(
+          'removalReasonId',
+          'Removal reason',
+          reasons.map((reason) => ({ label: `${reason.title}: ${reason.message}`, value: reason.id }))
+        ),
+        select(
+          'flairTemplateId',
+          'Post flair',
+          flairs.map((flair) => ({ label: flair.text, value: flair.id }))
+        ),
+        {
+          type: 'boolean',
+          name: 'approve',
+          label: 'Approve the post after adding guidance',
+          defaultValue: autoApprove === true || autoApprove === 'true',
+        },
+      ],
+      'The post is temporarily removed so Reddit can attach the selected reason. The app then adds a distinguished, locked guidance comment, applies the flair, and approves the post when selected.',
+      undefined,
+      'Apply guidance',
+      'Cancel',
+      'Post'
+    )
+  );
+});
+crew.post('/form/teenGuidance', async (c) => {
+  const who = await identity();
+  adminOnly(who);
+  const v = await c.req.json<Values>();
+  const flow = await session(v, who, 'teenGuidance');
+  const targetId = flow.series;
+  if (!/^t3_[A-Za-z0-9]+$/.test(targetId)) throw Error('Choose a valid post.');
+  const message = await settings.get(TEEN_GUIDANCE_MESSAGE_SETTING);
+  if (typeof message !== 'string' || !message.trim())
+    throw Error('Set a teenage weight-loss guidance message in app settings first.');
+  const reasonId = choice(v, 'removalReasonId');
+  const flairTemplateId = choice(v, 'flairTemplateId');
+  const approve = v.approve === true || v.approve === 'true';
+  const subreddit = await reddit.getSubredditByName(context.subredditName);
+  const [reasons, flairs] = await Promise.all([
+    subreddit.getRemovalReasons(),
+    reddit.getPostFlairTemplates(context.subredditName),
+  ]);
+  if (!reasons.some((reason) => reason.id === reasonId))
+    throw Error('That removal reason is no longer available. Reopen the action and choose again.');
+  if (!flairs.some((flair) => flair.id === flairTemplateId))
+    throw Error('That post flair is no longer available. Reopen the action and choose again.');
+  const post = await reddit.getPostById(targetId as `t3_${string}`);
+  if (post.subredditName.toLowerCase() !== context.subredditName.toLowerCase())
+    throw Error('This post belongs to another community.');
+  await post.remove(false);
+  await post.addRemovalNote({ reasonId });
+  const comment = await post.addComment({ text: message.trim() });
+  await comment.distinguish(false);
+  await comment.lock();
+  await reddit.setPostFlair({
+    subredditName: context.subredditName,
+    postId: post.id,
+    flairTemplateId,
+  });
+  if (approve) await post.approve();
+  return c.json<UiResponse>({
+    showToast: approve
+      ? 'Guidance added, post flaired, and post approved.'
+      : 'Guidance added and post flaired. The post remains in the moderation queue.',
+  });
 });
 crew.post('/menu/dashboard', async (c) => {
   const who = await identity();

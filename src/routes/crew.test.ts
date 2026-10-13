@@ -24,15 +24,41 @@ let deleted = 0;
 let failDelete = false;
 let failDeleteId = '';
 let failEdit = false;
+const guidanceEvents: string[] = [];
+const removalReasons = [
+  { id: 'reason-teen', title: 'Teenage weight loss', message: 'Adult guidance only' },
+];
+const postFlairs = [{ id: 'flair-teen', text: 'Teenage weight loss' }];
 let fakePost = {
   id: 't3_trigger',
   authorName: 'AutoModerator',
   subredditName: 'loseit_test',
   title: '[check-in-crew:eu]',
   body: '',
+  removed: false,
   createdAt: new Date(),
   async remove() {
     removed++;
+    this.removed = true;
+    guidanceEvents.push('remove');
+  },
+  async addRemovalNote({ reasonId }: { reasonId: string }) {
+    guidanceEvents.push('reason:' + reasonId);
+  },
+  async addComment({ text }: { text: string }) {
+    guidanceEvents.push('comment:' + text);
+    return {
+      async distinguish() {
+        guidanceEvents.push('distinguish');
+      },
+      async lock() {
+        guidanceEvents.push('comment-lock');
+      },
+    };
+  },
+  async approve() {
+    this.removed = false;
+    guidanceEvents.push('approve');
   },
   async delete() {
     if (failDelete || this.id === failDeleteId)
@@ -146,7 +172,16 @@ mock.module('@devvit/web/server', {
         return {
           userFlairsEnabled: true,
           usersCanAssignUserFlairs: true,
+          async getRemovalReasons() {
+            return removalReasons;
+          },
         };
+      },
+      async getPostFlairTemplates() {
+        return postFlairs;
+      },
+      async setPostFlair() {
+        guidanceEvents.push('flair');
       },
       async submitPost(content: { title: string; text: string }) {
         sent++;
@@ -244,10 +279,17 @@ function reset(): Config {
   installationSettings.clear();
   installationSettings.set('enableCommunityCalculator', false);
   installationSettings.set('allowMaintainerDeletion', false);
+  installationSettings.set('enableTeenGuidanceAction', true);
+  installationSettings.set(
+    'teenGuidanceMessage',
+    'Teenage guidance message for testing.'
+  );
+  installationSettings.set('teenGuidanceAutoApprove', true);
   sent = 0;
   submitted.length = 0;
   beforeExec = undefined;
   stickyPositions.length = 0;
+  guidanceEvents.length = 0;
   removed = 0;
   deleted = 0;
   failDelete = false;
@@ -266,6 +308,7 @@ function reset(): Config {
     subredditName: 'loseit_test',
     title: '[check-in-crew:eu]',
     body: '',
+    removed: false,
     createdAt: new Date(),
   };
   return cfg;
@@ -322,6 +365,27 @@ void test('post calculator can be limited to moderators', async () => {
   ctx.userId = 't2_admin';
   const allowed = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
   assert.equal(allowed.showForm?.name, 'bmiUnits');
+});
+void test('teen guidance selects live reason and flair, then approves by default', async () => {
+  reset();
+  const menu = await request('/menu/teenGuidance', { targetId: 't3_trigger' });
+  assert.equal(menu.showForm?.name, 'teenGuidance');
+  const response = await request('/form/teenGuidance', {
+    ...fields(menu),
+    removalReasonId: ['reason-teen'],
+    flairTemplateId: ['flair-teen'],
+    approve: true,
+  });
+  assert.match(response.showToast ?? '', /approved/);
+  assert.deepEqual(guidanceEvents, [
+    'remove',
+    'reason:reason-teen',
+    'comment:Teenage guidance message for testing.',
+    'distinguish',
+    'comment-lock',
+    'flair',
+    'approve',
+  ]);
 });
 void test('automatic account checks remove active access without historic deletion', async () => {
   reset();
@@ -655,6 +719,12 @@ void test('server form and automation integration', async (t) => {
       });
       assert.equal(preview.data.title, 'A published title');
       installationSettings.set('allowMaintainerDeletion', false);
+  installationSettings.set('enableTeenGuidanceAction', true);
+  installationSettings.set(
+    'teenGuidanceMessage',
+    'Teenage guidance message for testing.'
+  );
+  installationSettings.set('teenGuidanceAutoApprove', true);
       assert.equal((await requestDelete()).status, 400);
       ctx.userId = 't2_admin';
       assert.equal((await requestDelete()).status, 200);
