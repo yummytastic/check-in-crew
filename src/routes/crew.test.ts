@@ -368,14 +368,16 @@ void test('post calculator can be limited to moderators', async () => {
 });
 void test('teen guidance selects live reason and flair, then approves by default', async () => {
   reset();
+  await fakeRedis.set('crew:teen-guidance:v1', JSON.stringify({
+    enabled: true,
+    removalReasonId: 'reason-teen',
+    flairTemplateId: 'flair-teen',
+    flairText: '',
+    messageOverride: 'Teenage guidance message for testing.',
+    autoApprove: true,
+  }));
   const menu = await request('/menu/teenGuidance', { targetId: 't3_trigger' });
-  assert.equal(menu.showForm?.name, 'teenGuidance');
-  const response = await request('/form/teenGuidance', {
-    ...fields(menu),
-    removalReasonId: ['reason-teen'],
-    flairTemplateId: ['flair-teen'],
-    approve: true,
-  });
+  const response = menu;
   assert.match(response.showToast ?? '', /approved/);
   assert.deepEqual(guidanceEvents, [
     'remove',

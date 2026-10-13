@@ -244,24 +244,6 @@
             "label": "Welcome message for dashboard users",
             "defaultValue": "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.",
             "helpText": "Shown to moderators and assigned volunteers. Use {subreddit_link} for a safe link to this subreddit and {modmail_link} for a safe link to modmail. Keep the message under 1,000 characters."
-          },
-          "enableTeenGuidanceAction": {
-            "type": "boolean",
-            "label": "Enable teenage weight-loss guidance action",
-            "defaultValue": true,
-            "helpText": "Shows a moderator-only post action that temporarily removes a post, adds the selected removal reason and guidance comment, applies a selected post flair, and approves the post by default."
-          },
-          "teenGuidanceMessage": {
-            "type": "paragraph",
-            "label": "Teenage weight-loss guidance message",
-            "defaultValue": "This community's weight-loss guidance is intended for adults. BMI and weight-loss advice are not suitable for assessing teenagers. Please speak with a parent, guardian, doctor, or other qualified professional for advice about a teenager's health.",
-            "helpText": "Posted as a distinguished, locked moderator comment when the action is used. Keep it under 10,000 characters."
-          },
-          "teenGuidanceAutoApprove": {
-            "type": "boolean",
-            "label": "Approve after posting teenage guidance",
-            "defaultValue": true,
-            "helpText": "Enabled by default. After the guidance comment and flair are applied, approve the post so it leaves the moderation queue."
           }
         }
       },
@@ -800,7 +782,6 @@
     "bmiUnits": "/internal/form/bmiUnits",
     "bmiInputs": "/internal/form/bmiInputs",
     "bmiResult": "/internal/form/bmiResult",
-    "teenGuidance": "/internal/form/teenGuidance",
     "createType": "/internal/form/createType",
     "createTiming": "/internal/form/createTiming",
     "create": "/internal/form/create",

@@ -91,9 +91,17 @@ const adminOnly = (who: Identity) => {
 const DASHBOARD_KEY = 'crew:dashboard:v1';
 const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
 const BMI_MODERATORS_ONLY_SETTING = 'communityCalculatorModeratorsOnly';
-const TEEN_GUIDANCE_ENABLED_SETTING = 'enableTeenGuidanceAction';
 const TEEN_GUIDANCE_MESSAGE_SETTING = 'teenGuidanceMessage';
-const TEEN_GUIDANCE_AUTO_APPROVE_SETTING = 'teenGuidanceAutoApprove';
+const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
+type TeenGuidanceConfig = { enabled: boolean; removalReasonId: string; flairTemplateId: string; flairText: string; messageOverride: string; autoApprove: boolean };
+async function savedTeenGuidance(): Promise<TeenGuidanceConfig> {
+  const raw = await redis.get(TEEN_GUIDANCE_KEY);
+  if (!raw) return { enabled: true, removalReasonId: '', flairTemplateId: '', flairText: '', messageOverride: '', autoApprove: true };
+  try {
+    const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
+    return { enabled: value.enabled !== false, removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '', flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '', flairText: typeof value.flairText === 'string' ? value.flairText : '', messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '', autoApprove: value.autoApprove !== false };
+  } catch { return { enabled: true, removalReasonId: '', flairTemplateId: '', flairText: '', messageOverride: '', autoApprove: true }; }
+}
 
 async function targetText(targetId: string): Promise<string> {
   try {
@@ -281,8 +289,8 @@ crew.post('/menu/bmi', async (c) => {
   );
 });
 crew.post('/menu/teenGuidance', async (c) => {
-  const enabled = await settings.get(TEEN_GUIDANCE_ENABLED_SETTING);
-  if (!(enabled === true || enabled === 'true'))
+  const configured = await savedTeenGuidance();
+  if (!configured.enabled)
     return c.json<UiResponse>({
       showToast: 'Teenage weight-loss guidance is disabled in this community.',
     });
@@ -295,48 +303,28 @@ crew.post('/menu/teenGuidance', async (c) => {
   const post = await reddit.getPostById(targetId as `t3_${string}`);
   if (post.subredditName.toLowerCase() !== context.subredditName.toLowerCase())
     return c.json<UiResponse>({ showToast: 'This post belongs to another community.' });
+  if (!configured.removalReasonId || !configured.flairTemplateId)
+    return c.json<UiResponse>({ showToast: 'Open the Check-In Crew dashboard and choose the guidance removal reason and post flair first.' });
   const subreddit = await reddit.getSubredditByName(context.subredditName);
   const [reasons, flairs] = await Promise.all([
     subreddit.getRemovalReasons(),
     reddit.getPostFlairTemplates(context.subredditName),
   ]);
-  if (!reasons.length)
-    return c.json<UiResponse>({ showToast: 'Create a subreddit removal reason before using this action.' });
-  if (!flairs.length)
-    return c.json<UiResponse>({ showToast: 'Create a post flair template before using this action.' });
-  const autoApprove = await settings.get(TEEN_GUIDANCE_AUTO_APPROVE_SETTING);
-  return c.json(
-    await form(
-      who,
-      'teenGuidance',
-      0,
-      targetId,
-      'Apply teenage weight-loss guidance',
-      [
-        select(
-          'removalReasonId',
-          'Removal reason',
-          reasons.map((reason) => ({ label: `${reason.title}: ${reason.message}`, value: reason.id }))
-        ),
-        select(
-          'flairTemplateId',
-          'Post flair',
-          flairs.map((flair) => ({ label: flair.text, value: flair.id }))
-        ),
-        {
-          type: 'boolean',
-          name: 'approve',
-          label: 'Approve the post after adding guidance',
-          defaultValue: autoApprove === true || autoApprove === 'true',
-        },
-      ],
-      'The post is temporarily removed so Reddit can attach the selected reason. The app then adds a distinguished, locked guidance comment, applies the flair, and approves the post when selected.',
-      undefined,
-      'Apply guidance',
-      'Cancel',
-      'Post'
-    )
-  );
+  const reason = reasons.find((item) => item.id === configured.removalReasonId);
+  const flair = flairs.find((item) => item.id === configured.flairTemplateId);
+  if (!reason || !flair)
+    return c.json<UiResponse>({ showToast: 'The saved guidance reason or flair is no longer available. Update it in the dashboard.' });
+  const legacyMessage = await settings.get(TEEN_GUIDANCE_MESSAGE_SETTING);
+  const message = configured.messageOverride || (typeof reason.message === 'string' ? reason.message : '') || (typeof legacyMessage === 'string' ? legacyMessage : '');
+  if (!message.trim()) return c.json<UiResponse>({ showToast: 'Set a guidance message in the dashboard first.' });
+  await post.remove(false);
+  await post.addRemovalNote({ reasonId: configured.removalReasonId });
+  const comment = await post.addComment({ text: message.trim() });
+  await comment.distinguish(false);
+  await comment.lock();
+  await reddit.setPostFlair({ subredditName: context.subredditName, postId: post.id, flairTemplateId: configured.flairTemplateId, ...(configured.flairText ? { text: configured.flairText } : {}) });
+  if (configured.autoApprove) await post.approve();
+  return c.json<UiResponse>({ showToast: configured.autoApprove ? 'Guidance added, post flaired, and post approved.' : 'Guidance added and post flaired.' });
 });
 crew.post('/form/teenGuidance', async (c) => {
   const who = await identity();

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { flair, flairAvailable } from './flair.ts';
-import { context, reddit, settings } from '@devvit/web/server';
+import { context, reddit, settings, redis } from '@devvit/web/server';
 import {
   hostNames,
   slotsForSeries,
@@ -73,6 +73,86 @@ async function welcomeSetting(key: string, fallback: string): Promise<string> {
     ? value
     : fallback;
 }
+const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
+type TeenGuidanceConfig = {
+  enabled: boolean;
+  removalReasonId: string;
+  flairTemplateId: string;
+  flairText: string;
+  messageOverride: string;
+  autoApprove: boolean;
+};
+const requireAdmin = (who: Awaited<ReturnType<typeof identity>>) => {
+  if (!who.admin) throw new Error('Moderator access is required.');
+};
+const defaultTeenGuidance: TeenGuidanceConfig = {
+  enabled: true,
+  removalReasonId: '',
+  flairTemplateId: '',
+  flairText: '',
+  messageOverride: '',
+  autoApprove: true,
+};
+async function teenGuidanceConfig(): Promise<TeenGuidanceConfig> {
+  const raw = await redis.get(TEEN_GUIDANCE_KEY);
+  if (!raw) return { ...defaultTeenGuidance };
+  try {
+    const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
+    return {
+      enabled: value.enabled !== false,
+      removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
+      flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
+      flairText: typeof value.flairText === 'string' ? value.flairText : '',
+      messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '',
+      autoApprove: value.autoApprove !== false,
+    };
+  } catch {
+    return { ...defaultTeenGuidance };
+  }
+}
+api.get('/dashboard/teen-guidance', async (c) => {
+  const who = await identity();
+  requireAdmin(who);
+  const subreddit = await reddit.getSubredditByName(context.subredditName);
+  const [reasons, flairs, saved] = await Promise.all([
+    subreddit.getRemovalReasons(),
+    reddit.getPostFlairTemplates(context.subredditName),
+    teenGuidanceConfig(),
+  ]);
+  return c.json({
+    ...saved,
+    reasons: reasons.map((reason) => ({ id: reason.id, title: reason.title, message: reason.message })),
+    flairs: flairs.map((flair) => ({ id: flair.id, text: flair.text, allowableContent: flair.allowableContent })),
+  });
+});
+api.post('/dashboard/teen-guidance', async (c) => {
+  const who = await identity();
+  requireAdmin(who);
+  const body = await c.req.json<Record<string, unknown>>();
+  const subreddit = await reddit.getSubredditByName(context.subredditName);
+  const [reasons, flairs] = await Promise.all([
+    subreddit.getRemovalReasons(),
+    reddit.getPostFlairTemplates(context.subredditName),
+  ]);
+  const removalReasonId = typeof body.removalReasonId === 'string' ? body.removalReasonId : '';
+  const flairTemplateId = typeof body.flairTemplateId === 'string' ? body.flairTemplateId : '';
+  if (removalReasonId && !reasons.some((reason) => reason.id === removalReasonId)) throw Error('Choose a current removal reason.');
+  if (flairTemplateId && !flairs.some((flair) => flair.id === flairTemplateId)) throw Error('Choose a current post flair.');
+  const flairText = typeof body.flairText === 'string' ? body.flairText.trim() : '';
+  if (flairText.length > 64) throw Error('Custom flair text must be 64 characters or fewer.');
+  const messageOverride = typeof body.messageOverride === 'string' ? body.messageOverride.trim() : '';
+  if (messageOverride.length > 1000) throw Error('The guidance message must be 1000 characters or fewer.');
+  const saved: TeenGuidanceConfig = {
+    enabled: body.enabled === true,
+    removalReasonId,
+    flairTemplateId,
+    flairText,
+    messageOverride,
+    autoApprove: body.autoApprove !== false,
+  };
+  await redis.set(TEEN_GUIDANCE_KEY, JSON.stringify(saved));
+  return c.json({ ok: true });
+});
 // Public responses contain only community-facing options and copy, never account names or history.
 api.get('/public', async (c) => {
   c.header('Cache-Control', 'no-store');
