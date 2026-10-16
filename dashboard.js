@@ -10,11 +10,13 @@ const managementView = document.querySelector('#management-view');
 const publicRoot = document.querySelector('#public-view');
 let viewMode = getWebViewMode();
 document.documentElement.dataset.viewMode = viewMode;
+let expandedSurface = viewMode === 'expanded' ? 'dashboard' : 'home';
 let authorised = false;
 let publicOptionsRequest = 0;
 const publicView = createPublicView(publicRoot, {
   openExpanded: (event) => {
     if (getWebViewMode() === 'expanded') return false;
+    expandedSurface = 'tool';
     requestExpandedMode(event);
     window.setTimeout(syncViewMode, 250);
     return true;
@@ -28,6 +30,7 @@ const publicView = createPublicView(publicRoot, {
     await Promise.all([loadPublicOptions(), load()]);
   },
   openDashboard: (event) => {
+    expandedSurface = 'dashboard';
     publicView.setDashboardOpening(true);
     if (!authorised) {
       void load();
@@ -292,7 +295,14 @@ function syncViewMode() {
   if (next !== viewMode) {
     viewMode = next;
     document.documentElement.dataset.viewMode = viewMode;
-    if (viewMode === 'expanded') publicView.enterExpanded();
+    if (viewMode === 'expanded' && expandedSurface === 'tool') {
+      publicView.enterExpanded();
+      return;
+    }
+    if (viewMode === 'inline') {
+      expandedSurface = 'home';
+      publicView.showHome();
+    }
     load({ preserveDrafts: true });
   }
 }
@@ -323,7 +333,7 @@ async function load({ preserveDrafts = false, savedGroup } = {}) {
       publicView.setDashboardOpening(false);
       return false;
     }
-    if (viewMode !== 'expanded') {
+    if (viewMode !== 'expanded' || expandedSurface === 'tool') {
       authorised = true;
       publicView.setDashboardOpening(false);
       return true;
