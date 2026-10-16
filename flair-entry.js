@@ -6,6 +6,8 @@ import {
 import { createFlairView } from './flair-view.js';
 
 const root = document.querySelector('#public-view');
+const viewMode = getWebViewMode();
+document.documentElement.dataset.viewMode = viewMode;
 const view = createFlairView(root, {
   back: (event) => {
     try {
@@ -18,7 +20,7 @@ const view = createFlairView(root, {
     }
   },
 });
-if (getWebViewMode() === 'expanded') void view.open();
+if (viewMode === 'expanded') void view.open();
 else {
   root.innerHTML =
     '<h1>Set my flair</h1><p>Open the full form to choose your flair.</p><button id="open-flair">Open flair form</button><p id="open-status" role="status"></p>';

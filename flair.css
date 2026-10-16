@@ -18,11 +18,25 @@ html::-webkit-scrollbar,
 body::-webkit-scrollbar {
   display: none;
 }
+html[data-view-mode='inline'],
+html[data-view-mode='inline'] body {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: auto;
+  touch-action: pan-y;
+}
 #public-view {
   min-height: 100dvh;
   max-width: 760px;
   margin: auto;
   padding: 16px;
+}
+html[data-view-mode='inline'] #public-view {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: pan-y;
 }
 .public-screen {
   display: flex;

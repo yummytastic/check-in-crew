@@ -8,9 +8,17 @@ import { createPeoplePanel } from './people-panel.js';
 
 const managementView = document.querySelector('#management-view');
 const publicRoot = document.querySelector('#public-view');
+let viewMode = getWebViewMode();
+document.documentElement.dataset.viewMode = viewMode;
 let authorised = false;
 let publicOptionsRequest = 0;
 const publicView = createPublicView(publicRoot, {
+  openExpanded: (event) => {
+    if (getWebViewMode() === 'expanded') return false;
+    requestExpandedMode(event, 'dashboard');
+    window.setTimeout(syncViewMode, 250);
+    return true;
+  },
   openFlair: (event) => {
     if (getWebViewMode() === 'expanded') return false;
     requestExpandedMode(event, 'flair');
@@ -76,7 +84,6 @@ const selected = new Set();
 const openSeries = new Map();
 let state;
 let seriesView = 'current';
-let viewMode = getWebViewMode();
 const timezoneHelp =
   '<button type="button" class="timezone-help" data-timezone-picker>Find and copy an IANA timezone ↗</button>';
 function openTimezonePicker(event) {
@@ -284,6 +291,8 @@ function syncViewMode() {
   const next = getWebViewMode();
   if (next !== viewMode) {
     viewMode = next;
+    document.documentElement.dataset.viewMode = viewMode;
+    if (viewMode === 'expanded') publicView.enterExpanded();
     load({ preserveDrafts: true });
   }
 }

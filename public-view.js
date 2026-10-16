@@ -13,7 +13,13 @@ import {
 // Measurements live only in this closure. Never pass them to access checks or links.
 export function createPublicView(
   root,
-  { checkAccess, openDashboard, openFlair = () => false, navigate }
+  {
+    checkAccess,
+    openDashboard,
+    openExpanded = () => false,
+    openFlair = () => false,
+    navigate,
+  }
 ) {
   let access = 'checking';
   let flairEnabled = false;
@@ -305,12 +311,16 @@ export function createPublicView(
     root.innerHTML = `<div class="public-screen" data-public-screen="${view}"><h1 tabindex="-1">${heading}</h1><div class="public-content">${content}</div><div class="public-footer">${footer}</div></div>`;
     const bind = (id, action) =>
       root.querySelector('#' + id)?.addEventListener('click', action);
-    bind('open-bmi', () => {
+    bind('open-bmi', (event) => {
       calculatorMode = 'bmi';
+      view = 'inputs';
+      if (openExpanded(event)) return;
       go('inputs');
     });
-    bind('open-calculator', () => {
+    bind('open-calculator', (event) => {
       calculatorMode = 'calories';
+      view = 'inputs';
+      if (openExpanded(event)) return;
       go('inputs');
     });
     bind('public-about', () => go('about'));
@@ -341,7 +351,11 @@ export function createPublicView(
       void checkAccess();
     });
     bind('public-open-dashboard', openDashboard);
-    bind('open-moderator-tools', () => void openModeratorTools());
+    bind('open-moderator-tools', (event) => {
+      view = 'moderator-tools';
+      if (openExpanded(event)) return;
+      void openModeratorTools();
+    });
     bind('moderator-tools-save', () => void saveModeratorTools());
     bind('moderator-tools-retry', () => void openModeratorTools());
     bind('moderator-tools-back', () => go('home'));
@@ -622,6 +636,15 @@ export function createPublicView(
       dashboardOpening = false;
       flairView.cancel();
       go('home');
+    },
+    enterExpanded() {
+      if (
+        view === 'moderator-tools' &&
+        !moderatorToolsLoading &&
+        !moderatorToolsData
+      )
+        void openModeratorTools();
+      else render();
     },
   };
 }
