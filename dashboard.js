@@ -15,7 +15,7 @@ let publicOptionsRequest = 0;
 const publicView = createPublicView(publicRoot, {
   openExpanded: (event) => {
     if (getWebViewMode() === 'expanded') return false;
-    requestExpandedMode(event, 'dashboard');
+    requestExpandedMode(event);
     window.setTimeout(syncViewMode, 250);
     return true;
   },

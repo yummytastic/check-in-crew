@@ -253,7 +253,7 @@ This is a private test build. Use the full dashboard for posts and series manage
 
 ## Development
 
-Requires Node.js 24 or later. The project uses Devvit 0.14.4; the configured test community is `r/loseit_test`.
+Requires Node.js 24 or later. The project uses Devvit 0.14.8; the configured test community is `r/loseit_test`.
 
 | Command                  | Purpose                                                                       |
 | ------------------------ | ----------------------------------------------------------------------------- |
