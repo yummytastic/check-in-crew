@@ -19,6 +19,15 @@ void test('post BMI hints parse adult metric and imperial measurements', () => {
   assert.equal(imperial.weightUnit, 'st');
   assert.ok(Math.abs(imperial.heightCm! - 177.8) < 0.01);
   assert.ok(Math.abs(imperial.weightKg! - 78.017) < 0.01);
+
+  const curlyQuote = findPostBmiHints('i’m female, 4’11, and 41 kg');
+  assert.equal(curlyQuote.heightUnit, 'ft');
+  assert.equal(curlyQuote.weightUnit, 'kg');
+  assert.ok(Math.abs(curlyQuote.heightCm! - 149.86) < 0.01);
+  assert.equal(curlyQuote.weightKg, 41);
+
+  const primeMarks = findPostBmiHints('Height: 5′4″, weight: 120 lbs');
+  assert.ok(Math.abs(primeMarks.heightCm! - 162.56) < 0.01);
 });
 
 void test('teen signals suppress all inferred measurements', () => {

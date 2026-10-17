@@ -38,7 +38,7 @@ export function findPostBmiHints(text: string): PostBmiHints {
     /\b(?:height\s*[:=]?\s*)?(\d{2,3}(?:\.\d+)?)\s*(?:cm|centimet(?:re|er)s?)\b/i
   );
   const heightImperial = text.match(
-    /\b([4-8])\s*(?:'|ft|feet)\s*(\d{1,2})?\s*(?:"|in|inches)?\b/i
+    /\b([4-8])\s*(?:['‘’′]|ft|feet)\s*(\d{1,2})?\s*(?:["“”″]|in|inches)?\b/i
   );
   if (heightMetric) {
     const cm = Number(heightMetric[1]);
