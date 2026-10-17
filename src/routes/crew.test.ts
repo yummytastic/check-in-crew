@@ -50,8 +50,8 @@ let fakePost = {
   async addComment({ text }: { text: string }) {
     guidanceEvents.push('comment:' + text);
     return {
-      async distinguish() {
-        guidanceEvents.push('distinguish');
+      async distinguish(makeSticky?: boolean) {
+        guidanceEvents.push('distinguish:' + makeSticky);
       },
       async lock() {
         guidanceEvents.push('comment-lock');
@@ -386,7 +386,7 @@ void test('teen guidance selects live reason and flair, then approves by default
     'reason:reason-teen',
     'note:Teenage weight loss',
     'comment:Teenage guidance message for testing.',
-    'distinguish',
+    'distinguish:true',
     'comment-lock',
     'flair',
     'approve',

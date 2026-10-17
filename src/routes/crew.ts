@@ -319,7 +319,7 @@ crew.post('/menu/teenGuidance', async (c) => {
     modNote: (reason.title || 'Teenage weight-loss guidance').slice(0, 100),
   });
   const comment = await post.addComment({ text: message.trim() });
-  await comment.distinguish(false);
+  await comment.distinguish(true);
   await comment.lock();
   await reddit.setPostFlair({ subredditName: context.subredditName, postId: post.id, flairTemplateId: configured.flairTemplateId });
   if (configured.autoApprove) await post.approve();
@@ -357,7 +357,7 @@ crew.post('/form/teenGuidance', async (c) => {
     modNote: (reason.title || 'Teenage weight-loss guidance').slice(0, 100),
   });
   const comment = await post.addComment({ text: message.trim() });
-  await comment.distinguish(false);
+  await comment.distinguish(true);
   await comment.lock();
   await reddit.setPostFlair({
     subredditName: context.subredditName,
