@@ -31,19 +31,29 @@ const publicView = createPublicView(publicRoot, {
   },
   openDashboard: (event) => {
     expandedSurface = 'dashboard';
-    publicView.setDashboardOpening(true);
     if (!authorised) {
+      publicView.setDashboardOpening(true);
       void load();
       return;
     }
     if (viewMode === 'expanded') {
+      publicView.setDashboardOpening(true);
       void load({ preserveDrafts: true });
       return;
     }
     try {
       requestExpandedMode(event, 'dashboard');
+      publicView.setDashboardOpening(true);
       window.setTimeout(syncViewMode, 250);
+      window.setTimeout(() => {
+        syncViewMode();
+        if (viewMode === 'inline') {
+          publicView.setDashboardOpening(false);
+          publicView.setAccess('failed');
+        }
+      }, 3000);
     } catch {
+      publicView.setDashboardOpening(false);
       publicView.setAccess('failed');
     }
   },
