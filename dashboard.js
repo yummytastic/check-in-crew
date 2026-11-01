@@ -671,9 +671,10 @@ function privacyDeletionMarkup() {
   const job = state.privacyDeletion;
   if (!job)
     return '<button class="quiet-link" id="personal-data-deletion">Personal-data deletion</button>';
-  const progress = job.state === 'scanning'
-    ? `Checking stored history (${job.scannedMonths} of 1200 months).`
-    : `Removing saved identifiers and host credits from ${job.pendingPosts} recorded posts.`;
+  const progress =
+    job.state === 'scanning'
+      ? `Checking stored history (${job.scannedMonths} of 1200 months).`
+      : `Removing saved identifiers and host credits from ${job.pendingPosts} recorded posts.`;
   return `<div class="notice ${job.state === 'failed' ? 'error' : ''}"><strong>Personal-data deletion ${job.state === 'failed' ? 'needs attention' : 'in progress'}</strong><p>${progress}</p>${job.error ? `<p>${esc(job.error)}</p><button class="quiet-link" id="retry-personal-data-deletion">Retry cleanup</button>` : ''}</div>`;
 }
 function openPersonalDataDeletionDialog() {
@@ -688,22 +689,46 @@ function openPersonalDataDeletionDialog() {
   const submit = dialog.querySelector('#personal-data-submit');
   const check = dialog.querySelector('#personal-data-check');
   const impact = dialog.querySelector('#personal-data-impact');
-  const confirmationLabel = dialog.querySelector('#personal-data-confirmation-label');
+  const confirmationLabel = dialog.querySelector(
+    '#personal-data-confirmation-label'
+  );
   let checkedUsername = '';
-  const update = () => { submit.disabled = checkedUsername !== username.value.trim().replace(/^u\//i, '').toLowerCase() || confirmation.value !== 'DELETE'; };
-  username.addEventListener('input', () => { checkedUsername = ''; impact.hidden = true; confirmationLabel.hidden = true; submit.hidden = true; check.hidden = false; update(); });
+  const update = () => {
+    submit.disabled =
+      checkedUsername !==
+        username.value.trim().replace(/^u\//i, '').toLowerCase() ||
+      confirmation.value !== 'DELETE';
+  };
+  username.addEventListener('input', () => {
+    checkedUsername = '';
+    impact.hidden = true;
+    confirmationLabel.hidden = true;
+    submit.hidden = true;
+    check.hidden = false;
+    update();
+  });
   confirmation.addEventListener('input', update);
-  dialog.querySelector('#personal-data-cancel').addEventListener('click', () => dialog.close());
+  dialog
+    .querySelector('#personal-data-cancel')
+    .addEventListener('click', () => dialog.close());
   check.addEventListener('click', async () => {
     try {
       const response = await fetch('/api/dashboard/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'personalDataDeletionPreview', revision: state.revision, username: username.value }),
+        body: JSON.stringify({
+          action: 'personalDataDeletionPreview',
+          revision: state.revision,
+          username: username.value,
+        }),
       });
       const data = await response.json();
-      if (!response.ok) throw Error(data.error || 'Unable to check the deletion impact.');
-      checkedUsername = username.value.trim().replace(/^u\//i, '').toLowerCase();
+      if (!response.ok)
+        throw Error(data.error || 'Unable to check the deletion impact.');
+      checkedUsername = username.value
+        .trim()
+        .replace(/^u\//i, '')
+        .toLowerCase();
       impact.hidden = false;
       impact.textContent = `This will remove stored references and check up to ${data.postCount} recorded Check-In Crew posts for this username. Any matching credit will be edited to [deleted]. This is an upper bound: posts without a matching credit are left unchanged.`;
       confirmationLabel.hidden = false;
@@ -717,7 +742,12 @@ function openPersonalDataDeletionDialog() {
     }
   });
   submit.addEventListener('click', async () => {
-    const ok = await send({ action: 'personalDataDeletion', revision: state.revision, username: username.value, confirmation: confirmation.value });
+    const ok = await send({
+      action: 'personalDataDeletion',
+      revision: state.revision,
+      username: username.value,
+      confirmation: confirmation.value,
+    });
     if (ok) dialog.close();
     else {
       const error = dialog.querySelector('#personal-data-error');
@@ -950,17 +980,21 @@ function render() {
         .join('');
       const customHostCredit = series.hostCreditOverride;
       const defaultHostCredit = `<label class="checkbox-label"><input type="checkbox" data-host-default ${customHostCredit ? '' : 'checked'}> Use default host credit</label><p class="muted" data-host-summary ${customHostCredit ? 'hidden' : ''}>Default: ${esc(series.defaultHostCredit)}</p><input aria-label="Host credit format" data-host-credit value="${esc(series.hostCredit)}" ${customHostCredit ? '' : 'hidden'}>`;
-      const hostCredit = series.seriesType === 'simple'
-        ? `<div class="title-format"><label class="checkbox-label"><input type="checkbox" data-show-host-credit ${series.showHostCredit ? 'checked' : ''}> Include host credit in generated posts</label><p class="muted">Off by default for simple recurring posts. Maintainer access is separate from host credit.</p><div data-simple-host-credit ${series.showHostCredit ? '' : 'hidden'}>${defaultHostCredit}</div></div>`
-        : `<div class="title-format">${defaultHostCredit}</div>`;
+      const hostCredit =
+        series.seriesType === 'simple'
+          ? `<div class="title-format"><label class="checkbox-label"><input type="checkbox" data-show-host-credit ${series.showHostCredit ? 'checked' : ''}> Include host credit in generated posts</label><p class="muted">Off by default for simple recurring posts. Maintainer access is separate from host credit.</p><div data-simple-host-credit ${series.showHostCredit ? '' : 'hidden'}>${defaultHostCredit}</div></div>`
+          : `<div class="title-format">${defaultHostCredit}</div>`;
       const hostButton = 'People &amp; access';
-      const seriesSettings = `<div class="type-choice"><strong>${series.seriesType === 'simple' ? 'Simple recurring posts' : 'Monthly series'}</strong><p class="muted">${series.seriesType === 'simple' ? esc(series.scheduleSummary) : typeDescriptions.accountability}</p>${series.seriesType === 'simple' ? `<p class="muted">Next ${series.previewCount} posts shown</p><button type="button" class="secondary" data-change-schedule="${esc(series.id)}">${series.frequency === 'other' && !series.schedule ? 'Choose schedule' : 'Change schedule'}</button>` : ''}</div>`;
+      const seriesSettings = `<div class="type-choice"><strong>${series.seriesType === 'simple' ? 'Simple recurring posts' : 'Monthly series'}</strong><p class="muted">${series.seriesType === 'simple' ? esc(series.scheduleSummary) : typeDescriptions.accountability}</p>${series.seriesType === 'simple' ? `<p class="muted">Next ${series.previewCount} posts shown</p><button type="button" class="secondary" data-change-schedule="${esc(series.id)}">${series.frequency === 'other' && !series.schedule ? 'Choose schedule' : 'Change schedule'}</button>` : `<label class="checkbox-label"><input type="checkbox" data-check-in-day-one ${series.checkInOnDayOne ? 'checked' : ''}> Also post a check-in on day 1?</label><label class="checkbox-label"><input type="checkbox" data-check-in-last-day ${series.checkInOnLastDay ? 'checked' : ''}> Also post a check-in on the last day of the month?</label>`}</div>`;
       const displayName = state.admin
         ? `<label>Display name<p class="muted">Shown in generated post titles and host credits.</p><input data-label value="${esc(series.label)}" maxlength="40"></label>`
         : '';
       const titleHelp =
         'Defaults come from this community’s app settings. Uncheck Use default to customise this series. Changes to defaults apply to upcoming posts that inherit them; custom series and dated overrides are kept. ';
-      const creditPlaceholder = series.seriesType === 'simple' ? '{host_credit_simple}' : '{host_credit_monthly}';
+      const creditPlaceholder =
+        series.seriesType === 'simple'
+          ? '{host_credit_simple}'
+          : '{host_credit_monthly}';
       return `<article class="series" data-series-id="${esc(series.id)}" data-series-type="${esc(series.seriesType)}"><details data-series-details="current:${esc(series.id)}" ${openSeries.get(`current:${series.id}`) ? 'open' : ''}><summary><span class="series-title"><label class="checkbox-label"><input type="checkbox" data-series="${esc(series.id)}" aria-label="Select ${esc(series.label)}" ${checked}></label><h2>${esc(series.label)} <span class="badge ${series.enabled ? 'active' : 'paused'}">${series.enabled ? 'Active' : 'Paused'}</span></h2></span><p class="meta">${esc(series.time)} ${esc(series.timezone)} · Hosts: ${hosts}</p><p class="meta">Maintainers: ${maintainers}</p>${state.admin ? `<p class="meta">ID: ${esc(series.id)}</p>` : ''}</summary><div class="series-body"><div class="actions"><button data-toggle="${esc(series.id)}" class="${series.enabled ? 'danger' : ''}">${series.enabled ? 'Pause' : 'Resume'}</button><button type="button" class="secondary" data-show-hosts="${esc(series.id)}">${hostButton}</button>${state.admin ? `<button class="secondary" data-archive="${esc(series.id)}">Archive series</button>` : ''} </div><div class="settings" data-edit-group="${esc(series.id)}:settings">${seriesSettings}${displayName}<label>Posting time<input data-time ${series.seriesType === 'simple' ? 'readonly' : ''} value="${esc(series.time)}" pattern="[0-9]{2}:[0-9]{2}"></label><label>Timezone<input data-timezone ${series.seriesType === 'simple' ? 'readonly' : ''} value="${esc(series.timezone)}">${timezoneHelp}</label>${sticky}<button data-save="${esc(series.id)}">Save settings</button></div><div class="templates"><section class="edit-section" data-edit-group="${esc(series.id)}:bodies"><h3>Post bodies</h3><p class="muted">Defaults come from app settings. Uncheck Use default to customise a body for this series. Shortcodes: {month}, {day}, {weekday}, {date}, {series}, {frequency}, ${creditPlaceholder}, {community_note}, {signup_link}, and {previous_link}. The community note is filled in from app settings when publishing.</p>${templates}<div class="actions"><button data-save-templates="${esc(series.id)}">Save post bodies</button><button class="secondary" data-reset-templates="${esc(series.id)}">Restore default post bodies</button></div></section><section class="edit-section" data-edit-group="${esc(series.id)}:titles"><h3>Title formats</h3><p class="muted">${titleHelp}Use the buttons to insert shortcodes into a custom title. The example uses a scheduled date.</p>${titles}<div class="actions"><button data-save-titles="${esc(series.id)}">Save title formats</button><button class="secondary" data-reset-titles="${esc(series.id)}">Restore default titles</button></div></section><section class="edit-section" data-edit-group="${esc(series.id)}:credit"><h3>Host credit</h3><p class="muted">Hosts shown here are credited in generated post bodies. Use {hosts}, {series}, or {month} in a custom format.</p><p class="meta">${esc(state.month)} hosts: ${hosts}</p>${hostCredit}<div class="actions"><button data-save-host-credit="${esc(series.id)}">Save host credit</button><button class="secondary" data-reset-host-credit="${esc(series.id)}">Restore default host credit</button></div></section></div><div data-schedule-series="${esc(series.id)}">${scheduleMarkup(series, state.month)}</div></div></details></article>`;
     })
     .join('');
@@ -1088,7 +1122,9 @@ function render() {
   );
   document.querySelectorAll('[data-show-host-credit]').forEach((input) =>
     input.addEventListener('change', () => {
-      input.closest('.title-format').querySelector('[data-simple-host-credit]').hidden = !input.checked;
+      input
+        .closest('.title-format')
+        .querySelector('[data-simple-host-credit]').hidden = !input.checked;
     })
   );
   document
@@ -1276,6 +1312,14 @@ async function save(card, id) {
       : {}),
     time: card.querySelector('[data-time]').value,
     timezone: card.querySelector('[data-timezone]').value,
+    ...(card.dataset.seriesType === 'accountability'
+      ? {
+          checkInOnDayOne: card.querySelector('[data-check-in-day-one]')
+            .checked,
+          checkInOnLastDay: card.querySelector('[data-check-in-last-day]')
+            .checked,
+        }
+      : {}),
     signupSticky: card.querySelector('[data-sticky="signup"]')?.value,
     dailySticky: card.querySelector('[data-sticky="daily"]')?.value,
     roundupSticky: card.querySelector('[data-sticky="roundup"]')?.value,
@@ -1676,9 +1720,9 @@ document
 document
   .querySelector('#schedule-save')
   .addEventListener('click', saveSchedule);
-document.querySelectorAll('[data-timezone-picker]').forEach((button) =>
-  button.addEventListener('click', openTimezonePicker)
-);
+document
+  .querySelectorAll('[data-timezone-picker]')
+  .forEach((button) => button.addEventListener('click', openTimezonePicker));
 syncCreateFields();
 syncScheduleFields();
 loadPublicOptions();

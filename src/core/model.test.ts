@@ -33,6 +33,31 @@ void test('signup and first check-in coexist; calendar month ends produce one ro
   assert.throws(() => parseDate('2026-02-29'));
   assert.throws(() => parseDate('2026-09-31'));
 });
+void test('monthly check-ins on opening and closing days can be set independently', () => {
+  const series = defaults().series[0]!;
+  assert.deepEqual(
+    slotsForSeries(series, '2028-02-01').map((slot) => slot.kind),
+    ['signup', 'daily']
+  );
+  assert.deepEqual(
+    slotsForSeries(series, '2028-02-29').map((slot) => slot.kind),
+    ['roundup']
+  );
+  series.checkInOnDayOne = false;
+  series.checkInOnLastDay = true;
+  assert.deepEqual(
+    slotsForSeries(series, '2028-02-01').map((slot) => slot.kind),
+    ['signup']
+  );
+  assert.deepEqual(
+    slotsForSeries(series, '2028-02-29').map((slot) => slot.kind),
+    ['daily', 'roundup']
+  );
+  assert.deepEqual(
+    slotsForSeries(series, '2026-04-30').map((slot) => slot.kind),
+    ['daily', 'roundup']
+  );
+});
 void test('EU and US use separate dates and daylight-saving offsets', () => {
   const [eu, us] = defaults().series;
   eu!.enabled = us!.enabled = true;
@@ -127,10 +152,7 @@ void test('custom schedule due window keeps nearby history and current occurrenc
       },
     ],
   };
-  assert.equal(
-    dueSlots(series, new Date('2026-09-01T07:09:00Z')).length,
-    2
-  );
+  assert.equal(dueSlots(series, new Date('2026-09-01T07:09:00Z')).length, 2);
 });
 void test('other schedules support custom intervals, month-end and monthly weekday rules', () => {
   const base = {

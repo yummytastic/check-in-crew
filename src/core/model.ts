@@ -42,6 +42,8 @@ export type Series = {
   timezone: string;
   time: string;
   enabled: boolean;
+  checkInOnDayOne?: boolean;
+  checkInOnLastDay?: boolean;
   archived?: boolean;
   deletion?: {
     token: string;
@@ -215,7 +217,14 @@ export function isFutureSlot(
   );
 }
 export function slotsForSeries(series: Series, date: string): Slot[] {
-  if (series.seriesType !== 'simple') return slotsFor(date);
+  if (series.seriesType !== 'simple') {
+    const slots = slotsFor(date);
+    if (series.checkInOnDayOne === false && slots[0]?.day === 1)
+      return slots.filter((slot) => slot.kind !== 'daily');
+    if (series.checkInOnLastDay === true && slots[0]?.kind === 'roundup')
+      return [{ ...slots[0], kind: 'daily' }, ...slots];
+    return slots;
+  }
   if (series.schedule) return repeatSlots(series, date);
   if (series.frequency === 'other') return [];
   const parsed = parseDate(date);
@@ -360,7 +369,7 @@ export function renderPost(
   const monthlyCredit = formatCredit(
     series.seriesType === 'accountability' && series.hostCredit
       ? series.hostCredit
-      : configuredHostCredit?.monthly ?? defaultHostCreditTemplate()
+      : (configuredHostCredit?.monthly ?? defaultHostCreditTemplate())
   );
   const simpleCredit =
     series.seriesType === 'simple' && series.showHostCredit

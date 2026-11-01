@@ -14,10 +14,10 @@ A **series** is a group of posts with its own schedule, templates and maintainer
 
 | Type                       | How it works                                                                                                                                   | Example                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **Monthly series**         | A start post and daily check-in on day one, daily check-ins through the month, and a finish post on the last day. Repeats each calendar month. | Accountability challenges, reading groups or community projects. |
+| **Monthly series**         | A start post, daily check-ins, and a finish post on the last day. Each series can also post a check-in on day one and the last day. Repeats each calendar month. | Accountability challenges, reading groups or community projects. |
 | **Simple recurring posts** | One template repeated daily, weekly or on an **Other** schedule, with individually editable upcoming posts.                                    | Weekly goal setting, daily discussion or monthly reminders.      |
 
-Monthly series follow actual calendar months, including leap years. The finish post replaces the final day's check-in. Default titles use “30 Day Accountability Challenge”; edit them to suit your community.
+Monthly series follow actual calendar months, including leap years. In each series' settings, **Also post a check-in on day 1?** is on by default and **Also post a check-in on the last day of the month?** is off by default. Existing series retain those defaults until changed. The start and finish posts remain scheduled either way. Default titles use “30 Day Accountability Challenge”; edit them to suit your community.
 
 ## Get started
 

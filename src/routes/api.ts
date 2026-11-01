@@ -64,12 +64,15 @@ import {
 export const api = new Hono();
 api.route('/flair', flair);
 const defaultPublicWelcome =
-  '{subreddit_link}\'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.';
+  "{subreddit_link}'s community tools and volunteer dashboard. Please feel free to use the available tools below. If you have questions or would like to volunteer to run a regular themed thread, please {modmail_link}.";
 const defaultAuthorisedWelcome =
-  '{subreddit_link}\'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.';
+  "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.";
 async function welcomeSetting(key: string, fallback: string): Promise<string> {
   const value = await settings.get<string>(key);
-  return typeof value === 'string' && value.trim() && value.length <= 1000 && !/[\r\n]/.test(value)
+  return typeof value === 'string' &&
+    value.trim() &&
+    value.length <= 1000 &&
+    !/[\r\n]/.test(value)
     ? value
     : fallback;
 }
@@ -95,9 +98,12 @@ async function teenGuidanceConfig(): Promise<TeenGuidanceConfig> {
   try {
     const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
     return {
-      removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
-      flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
-      messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '',
+      removalReasonId:
+        typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
+      flairTemplateId:
+        typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
+      messageOverride:
+        typeof value.messageOverride === 'string' ? value.messageOverride : '',
       autoApprove: value.autoApprove !== false,
     };
   } catch {
@@ -115,8 +121,16 @@ api.get('/dashboard/teen-guidance', async (c) => {
   ]);
   return c.json({
     ...saved,
-    reasons: reasons.map((reason) => ({ id: reason.id, title: reason.title, message: reason.message })),
-    flairs: flairs.map((flair) => ({ id: flair.id, text: flair.text, allowableContent: flair.allowableContent })),
+    reasons: reasons.map((reason) => ({
+      id: reason.id,
+      title: reason.title,
+      message: reason.message,
+    })),
+    flairs: flairs.map((flair) => ({
+      id: flair.id,
+      text: flair.text,
+      allowableContent: flair.allowableContent,
+    })),
   });
 });
 api.post('/dashboard/teen-guidance', async (c) => {
@@ -128,12 +142,21 @@ api.post('/dashboard/teen-guidance', async (c) => {
     subreddit.getRemovalReasons(),
     reddit.getPostFlairTemplates(context.subredditName),
   ]);
-  const removalReasonId = typeof body.removalReasonId === 'string' ? body.removalReasonId : '';
-  const flairTemplateId = typeof body.flairTemplateId === 'string' ? body.flairTemplateId : '';
-  if (removalReasonId && !reasons.some((reason) => reason.id === removalReasonId)) throw Error('Choose a current removal reason.');
-  if (flairTemplateId && !flairs.some((flair) => flair.id === flairTemplateId)) throw Error('Choose a current post flair.');
-  const messageOverride = typeof body.messageOverride === 'string' ? body.messageOverride.trim() : '';
-  if (messageOverride.length > 10_000) throw Error('The guidance message must be 10,000 characters or fewer.');
+  const removalReasonId =
+    typeof body.removalReasonId === 'string' ? body.removalReasonId : '';
+  const flairTemplateId =
+    typeof body.flairTemplateId === 'string' ? body.flairTemplateId : '';
+  if (
+    removalReasonId &&
+    !reasons.some((reason) => reason.id === removalReasonId)
+  )
+    throw Error('Choose a current removal reason.');
+  if (flairTemplateId && !flairs.some((flair) => flair.id === flairTemplateId))
+    throw Error('Choose a current post flair.');
+  const messageOverride =
+    typeof body.messageOverride === 'string' ? body.messageOverride.trim() : '';
+  if (messageOverride.length > 10_000)
+    throw Error('The guidance message must be 10,000 characters or fewer.');
   const saved: TeenGuidanceConfig = {
     removalReasonId,
     flairTemplateId,
@@ -153,7 +176,11 @@ api.get('/public', async (c) => {
   ]);
   let moderator = false;
   if (context.userId) {
-    try { moderator = (await identity()).admin; } catch { moderator = false; }
+    try {
+      moderator = (await identity()).admin;
+    } catch {
+      moderator = false;
+    }
   }
   return c.json({
     calculatorEnabled: enabled === true || enabled === 'true',
@@ -364,6 +391,8 @@ api.get('/dashboard', async (c) => {
         hostCreditOverride: item.hostCredit !== undefined,
         showHostCredit:
           item.seriesType === 'simple' ? item.showHostCredit === true : true,
+        checkInOnDayOne: item.checkInOnDayOne !== false,
+        checkInOnLastDay: item.checkInOnLastDay === true,
         maintainers: item.maintainers.map((member) => ({
           username: member.username,
           through: member.through,
@@ -443,6 +472,8 @@ api.post('/dashboard/action', async (c) => {
     timezone?: unknown;
     time?: unknown;
     enabled?: unknown;
+    checkInOnDayOne?: unknown;
+    checkInOnLastDay?: unknown;
     signupSticky?: unknown;
     dailySticky?: unknown;
     roundupSticky?: unknown;
@@ -491,12 +522,18 @@ api.post('/dashboard/action', async (c) => {
     action === 'retryPersonalDataDeletion'
   ) {
     if (action === 'personalDataDeletionPreview') {
-      if (typeof body.username !== 'string') throw Error('Enter a Reddit username.');
+      if (typeof body.username !== 'string')
+        throw Error('Enter a Reddit username.');
       return c.json(await personalDataDeletionPreview(who, body.username));
     }
     if (action === 'personalDataDeletion') {
-      if (typeof body.username !== 'string') throw Error('Enter a Reddit username.');
-      await requestPersonalDataDeletion(who, body.username, body.confirmation ?? '');
+      if (typeof body.username !== 'string')
+        throw Error('Enter a Reddit username.');
+      await requestPersonalDataDeletion(
+        who,
+        body.username,
+        body.confirmation ?? ''
+      );
     } else await retryPersonalDataDeletion(who);
     return c.json({ ok: true });
   }
@@ -722,6 +759,12 @@ api.post('/dashboard/action', async (c) => {
       timezone: body.timezone.trim(),
       time: body.time.trim(),
       enabled: false,
+      ...(body.seriesType === 'simple'
+        ? {}
+        : {
+            checkInOnDayOne: body.checkInOnDayOne !== false,
+            checkInOnLastDay: body.checkInOnLastDay === true,
+          }),
       showHostCredit: body.seriesType === 'simple' ? false : true,
       sticky: {
         signup:
@@ -993,6 +1036,15 @@ api.post('/dashboard/action', async (c) => {
       series.timezone = body.timezone.trim();
     if (typeof body.time === 'string') series.time = body.time.trim();
     if (typeof body.enabled === 'boolean') series.enabled = body.enabled;
+    if (series.seriesType === 'accountability') {
+      for (const key of ['checkInOnDayOne', 'checkInOnLastDay'] as const) {
+        if (body[key] !== undefined) {
+          if (typeof body[key] !== 'boolean')
+            throw Error('Choose whether to post the extra check-ins.');
+          series[key] = body[key];
+        }
+      }
+    }
     if (body.label !== undefined) {
       if (!who.admin)
         throw new Error(

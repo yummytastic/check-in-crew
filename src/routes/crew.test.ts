@@ -2143,8 +2143,7 @@ void test('server form and automation integration', async (t) => {
         (await request('/form/publish', { ...fields(review), confirmed: true }))
           .navigateTo
       );
-      const today = localClock(new Date(), 'Europe/London').date;
-      assert.deepEqual(stickyPositions, [today.endsWith('-01') ? 1 : 2]);
+      assert.deepEqual(stickyPositions, [2]);
     }
   );
   await t.test(
