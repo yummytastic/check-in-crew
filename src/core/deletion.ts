@@ -6,7 +6,12 @@ import {
   publicationStore,
   type Identity,
 } from './service.ts';
-import { isCheckInCrewAuthor, type Config, type Publication, type Series } from './model.ts';
+import {
+  isCheckInCrewAuthor,
+  type Config,
+  type Publication,
+  type Series,
+} from './model.ts';
 
 const CONFIG = 'crew:config:v1';
 const AUDIT = 'crew:audit';

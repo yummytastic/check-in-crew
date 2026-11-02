@@ -27,7 +27,11 @@ let failDeleteId = '';
 let failEdit = false;
 const guidanceEvents: string[] = [];
 const removalReasons = [
-  { id: 'reason-teen', title: 'Teenage weight loss', message: 'Adult guidance only' },
+  {
+    id: 'reason-teen',
+    title: 'Teenage weight loss',
+    message: 'Adult guidance only',
+  },
 ];
 const postFlairs = [{ id: 'flair-teen', text: 'Teenage weight loss' }];
 let fakePost = {
@@ -43,7 +47,13 @@ let fakePost = {
     this.removed = true;
     guidanceEvents.push('remove');
   },
-  async addRemovalNote({ reasonId, modNote }: { reasonId: string; modNote?: string }) {
+  async addRemovalNote({
+    reasonId,
+    modNote,
+  }: {
+    reasonId: string;
+    modNote?: string;
+  }) {
     if (!modNote) throw Error('mod_note is required');
     guidanceEvents.push('reason:' + reasonId);
     guidanceEvents.push('note:' + modNote);
@@ -330,7 +340,10 @@ void test('post and comment calculator menu reviews adult values and suppresses 
   reset();
   installationSettings.set('enableCommunityCalculator', true);
   fakePost.body = 'I am 170 cm and weigh 75 kg.';
-  const menu = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const menu = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   assert.equal(menu.showForm?.name, 'bmiUnits');
   const inputs = await request('/form/bmiUnits', fields(menu));
   assert.equal(inputs.showForm?.name, 'bmiInputs');
@@ -339,22 +352,37 @@ void test('post and comment calculator menu reviews adult values and suppresses 
   assert.match(result.showForm?.form.description ?? '', /Estimated BMI: 26/);
 
   fakePost.body = '';
-  const low = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const low = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   const lowInputs = await request('/form/bmiUnits', fields(low));
   const lowResult = await request('/form/bmiInputs', {
     ...fields(lowInputs),
     heightCm: '170',
     weightKg: String(18.45 * 1.7 ** 2),
   });
-  assert.match(lowResult.showForm?.form.description ?? '', /Rounded up from 18\.450/);
+  assert.match(
+    lowResult.showForm?.form.description ?? '',
+    /Rounded up from 18\.450/
+  );
 
   fakePost.body = '16/f, 170 cm, 60 kg';
-  const teen = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
-  assert.match(teen.showForm?.form.fields.find((field) => field.name === 'session')?.name ?? '', /session/);
+  const teen = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
+  assert.match(
+    teen.showForm?.form.fields.find((field) => field.name === 'session')
+      ?.name ?? '',
+    /session/
+  );
   const teenInputs = await request('/form/bmiUnits', fields(teen));
   assert.equal(
     teenInputs.showForm?.form.fields
-      .filter((field) => /^(height|weight)(Cm|Feet|Inches|Kg|Lb|Stone|Pounds)$/.test(field.name))
+      .filter((field) =>
+        /^(height|weight)(Cm|Feet|Inches|Kg|Lb|Stone|Pounds)$/.test(field.name)
+      )
       .some((field) => field.defaultValue !== undefined),
     false
   );
@@ -364,23 +392,32 @@ void test('post calculator can be limited to moderators', async () => {
   installationSettings.set('enableCommunityCalculator', true);
   installationSettings.set('communityCalculatorModeratorsOnly', true);
   ctx.userId = 't2_member';
-  const denied = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const denied = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   assert.match(denied.showToast ?? '', /limited to moderators/);
 
   ctx.userId = 't2_admin';
-  const allowed = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const allowed = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   assert.equal(allowed.showForm?.name, 'bmiUnits');
 });
 void test('teen guidance selects live reason and flair, then approves by default', async () => {
   reset();
-  await fakeRedis.set('crew:teen-guidance:v1', JSON.stringify({
-    enabled: true,
-    removalReasonId: 'reason-teen',
-    flairTemplateId: 'flair-teen',
-    flairText: '',
-    messageOverride: 'Teenage guidance message for testing.',
-    autoApprove: true,
-  }));
+  await fakeRedis.set(
+    'crew:teen-guidance:v1',
+    JSON.stringify({
+      enabled: true,
+      removalReasonId: 'reason-teen',
+      flairTemplateId: 'flair-teen',
+      flairText: '',
+      messageOverride: 'Teenage guidance message for testing.',
+      autoApprove: true,
+    })
+  );
   const menu = await request('/menu/teenGuidance', { targetId: 't3_trigger' });
   const response = menu;
   assert.match(response.showToast ?? '', /approved/);
@@ -401,90 +438,114 @@ void test('automatic account checks remove active access without historic deleti
   fakePost.body = 'Thanks u/volunteer for hosting.';
   const start = new Date('2026-09-01T00:00:00Z');
   await checkTrackedAccounts(start);
-  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 1);
+  assert.equal(
+    JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer)
+      .checks,
+    1
+  );
   await checkTrackedAccounts(new Date('2026-09-01T12:00:00Z'));
-  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 2);
+  assert.equal(
+    JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer)
+      .checks,
+    2
+  );
   await checkTrackedAccounts(new Date('2026-09-02T00:00:00Z'));
   assert.equal(
-    Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}')).length,
+    Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}'))
+      .length,
     0
   );
   assert.equal(records.has('crew:privacy-deletion'), false);
   const updated = JSON.parse(records.get('crew:config:v1')!) as Config;
-  assert.equal(updated.series[0]!.maintainers.some((member) => member.username === 'volunteer'), false);
+  assert.equal(
+    updated.series[0]!.maintainers.some(
+      (member) => member.username === 'volunteer'
+    ),
+    false
+  );
   assert.equal(fakePost.body, 'Thanks u/volunteer for hosting.');
 });
 void test('server form and automation integration', async (t) => {
-  await t.test('personal-data deletion removes identity records and redacts recorded host credits', async () => {
-    const cfg = reset();
-    const series = cfg.series[0]!;
-    series.hostRoster = ['volunteer'];
-    series.hosts['2026-09'] = ['volunteer'];
-    series.postOverrides = {
-      '2026-09-01:daily': { body: 'Thanks u/volunteer for hosting.' },
-    };
-    records.set('crew:config:v1', JSON.stringify(cfg));
-    await fakeRedis.hSet('crew:audit', {
-      '0': JSON.stringify({ by: 'volunteer', series: [series] }),
-    });
-    const key = 'crew:post:eu:2026-09-01:daily';
-    await fakeRedis.hSet('crew:history:eu:2026-09', {
-      [key]: JSON.stringify({ date: '2026-09-01' }),
-    });
-    records.set(
-      key,
-      JSON.stringify({
-        status: 'posted',
-        at: new Date().toISOString(),
-        actor: 'volunteer',
-        postId: 't3_privacy',
-      })
-    );
-    fakePost = {
-      ...fakePost,
-      id: 't3_privacy',
-      authorName: 'check-in-crew',
-      body: 'Hosted by u/volunteer and u/another.',
-    };
-    fakePosts.set('t3_privacy', fakePost);
-    const impact = await dashboardAction({
-      action: 'personalDataDeletionPreview',
-      revision: cfg.revision,
-      username: 'u/volunteer',
-    });
-    assert.equal(impact.status, 200);
-    assert.equal(impact.data.postCount, 1);
-    const response = await dashboardAction({
-      action: 'personalDataDeletion',
-      revision: cfg.revision,
-      username: 'u/volunteer',
-      confirmation: 'DELETE',
-    });
-    assert.equal(response.status, 200);
-    for (let tick = 0; tick < 20; tick++) await processPersonalDataDeletion();
-    failEdit = true;
-    await processPersonalDataDeletion();
-    assert.equal(
-      (JSON.parse(records.get('crew:privacy-deletion') ?? '{}') as { state?: string }).state,
-      'failed'
-    );
-    failEdit = false;
-    const retry = await dashboardAction({
-      action: 'retryPersonalDataDeletion',
-      revision: (await config()).revision,
-    });
-    assert.equal(retry.status, 200);
-    await processPersonalDataDeletion();
-    assert.equal(records.has('crew:privacy-deletion'), false);
-    const saved = await config();
-    assert.deepEqual(saved.series[0]!.maintainers, []);
-    assert.deepEqual(saved.series[0]!.hosts['2026-09'], []);
-    assert.deepEqual(saved.series[0]!.hostRoster, []);
-    assert.equal(saved.series[0]!.postOverrides?.['2026-09-01:daily']?.body, 'Thanks [deleted] for hosting.');
-    assert.equal((await publicationStore.read(key))?.actor, '[deleted]');
-    assert.equal(fakePost.body, 'Hosted by [deleted] and u/another.');
-    assert.equal(records.get('crew:audit')?.includes('volunteer'), false);
-  });
+  await t.test(
+    'personal-data deletion removes identity records and redacts recorded host credits',
+    async () => {
+      const cfg = reset();
+      const series = cfg.series[0]!;
+      series.hostRoster = ['volunteer'];
+      series.hosts['2026-09'] = ['volunteer'];
+      series.postOverrides = {
+        '2026-09-01:daily': { body: 'Thanks u/volunteer for hosting.' },
+      };
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      await fakeRedis.hSet('crew:audit', {
+        '0': JSON.stringify({ by: 'volunteer', series: [series] }),
+      });
+      const key = 'crew:post:eu:2026-09-01:daily';
+      await fakeRedis.hSet('crew:history:eu:2026-09', {
+        [key]: JSON.stringify({ date: '2026-09-01' }),
+      });
+      records.set(
+        key,
+        JSON.stringify({
+          status: 'posted',
+          at: new Date().toISOString(),
+          actor: 'volunteer',
+          postId: 't3_privacy',
+        })
+      );
+      fakePost = {
+        ...fakePost,
+        id: 't3_privacy',
+        authorName: 'check-in-crew',
+        body: 'Hosted by u/volunteer and u/another.',
+      };
+      fakePosts.set('t3_privacy', fakePost);
+      const impact = await dashboardAction({
+        action: 'personalDataDeletionPreview',
+        revision: cfg.revision,
+        username: 'u/volunteer',
+      });
+      assert.equal(impact.status, 200);
+      assert.equal(impact.data.postCount, 1);
+      const response = await dashboardAction({
+        action: 'personalDataDeletion',
+        revision: cfg.revision,
+        username: 'u/volunteer',
+        confirmation: 'DELETE',
+      });
+      assert.equal(response.status, 200);
+      for (let tick = 0; tick < 20; tick++) await processPersonalDataDeletion();
+      failEdit = true;
+      await processPersonalDataDeletion();
+      assert.equal(
+        (
+          JSON.parse(records.get('crew:privacy-deletion') ?? '{}') as {
+            state?: string;
+          }
+        ).state,
+        'failed'
+      );
+      failEdit = false;
+      const retry = await dashboardAction({
+        action: 'retryPersonalDataDeletion',
+        revision: (await config()).revision,
+      });
+      assert.equal(retry.status, 200);
+      await processPersonalDataDeletion();
+      assert.equal(records.has('crew:privacy-deletion'), false);
+      const saved = await config();
+      assert.deepEqual(saved.series[0]!.maintainers, []);
+      assert.deepEqual(saved.series[0]!.hosts['2026-09'], []);
+      assert.deepEqual(saved.series[0]!.hostRoster, []);
+      assert.equal(
+        saved.series[0]!.postOverrides?.['2026-09-01:daily']?.body,
+        'Thanks [deleted] for hosting.'
+      );
+      assert.equal((await publicationStore.read(key))?.actor, '[deleted]');
+      assert.equal(fakePost.body, 'Hosted by [deleted] and u/another.');
+      assert.equal(records.get('crew:audit')?.includes('volunteer'), false);
+    }
+  );
   await t.test(
     'people panel saves independent roles and host order, preserving historic selections',
     async () => {
@@ -618,8 +679,14 @@ void test('server form and automation integration', async (t) => {
           "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.",
         moderator: false,
       });
-      installationSettings.set('publicWelcomeMessage', 'Welcome to {subreddit_link}; {modmail_link}.');
-      installationSettings.set('authorisedWelcomeMessage', 'Dashboard access for {subreddit}.');
+      installationSettings.set(
+        'publicWelcomeMessage',
+        'Welcome to {subreddit_link}; {modmail_link}.'
+      );
+      installationSettings.set(
+        'authorisedWelcomeMessage',
+        'Dashboard access for {subreddit}.'
+      );
       assert.deepEqual((await read('/public')).data, {
         calculatorEnabled: true,
         flairEnabled: true,
@@ -730,12 +797,12 @@ void test('server form and automation integration', async (t) => {
       });
       assert.equal(preview.data.title, 'A published title');
       installationSettings.set('allowMaintainerDeletion', false);
-  installationSettings.set('enableTeenGuidanceAction', true);
-  installationSettings.set(
-    'teenGuidanceMessage',
-    'Teenage guidance message for testing.'
-  );
-  installationSettings.set('teenGuidanceAutoApprove', true);
+      installationSettings.set('enableTeenGuidanceAction', true);
+      installationSettings.set(
+        'teenGuidanceMessage',
+        'Teenage guidance message for testing.'
+      );
+      installationSettings.set('teenGuidanceAutoApprove', true);
       assert.equal((await requestDelete()).status, 400);
       ctx.userId = 't2_admin';
       assert.equal((await requestDelete()).status, 200);
@@ -1161,8 +1228,14 @@ void test('server form and automation integration', async (t) => {
       );
       const dashboardPrompt = await request('/menu/dashboard');
       assert.equal(dashboardPrompt.showForm?.name, 'dashboardConfirm');
-      assert.match(dashboardPrompt.showForm?.form.description ?? '', /locked permanent post/);
-      const dashboard = await request('/form/dashboardConfirm', fields(dashboardPrompt));
+      assert.match(
+        dashboardPrompt.showForm?.form.description ?? '',
+        /locked permanent post/
+      );
+      const dashboard = await request(
+        '/form/dashboardConfirm',
+        fields(dashboardPrompt)
+      );
       assert.match(dashboard.navigateTo ?? '', /dashboard/);
       ctx.userId = 't2_volunteer';
       const pause = await openAction('emergencyPause');
@@ -1306,15 +1379,18 @@ void test('server form and automation integration', async (t) => {
       assert.equal(records.get(keys[0]!), unresolved);
     }
   );
-  await t.test('volunteers cannot create a missing dashboard post', async () => {
-    reset();
-    ctx.userId = 't2_volunteer';
-    const response = await request('/menu/dashboard');
-    assert.match(
-      response.showToast ?? '',
-      /dashboard isn't available.*moderator needs to create it/i
-    );
-  });
+  await t.test(
+    'volunteers cannot create a missing dashboard post',
+    async () => {
+      reset();
+      ctx.userId = 't2_volunteer';
+      const response = await request('/menu/dashboard');
+      assert.match(
+        response.showToast ?? '',
+        /dashboard isn't available.*moderator needs to create it/i
+      );
+    }
+  );
   await t.test(
     'series limit is configurable and enforced by both creation interfaces',
     async () => {
@@ -2169,7 +2245,10 @@ void test('server form and automation integration', async (t) => {
       assert.equal(sent, 1);
       const saved = [...records.entries()]
         .filter(([key]) => key.startsWith('crew:post:'))
-        .map(([, value]) => JSON.parse(String(value)) as { status: string; url?: string });
+        .map(
+          ([, value]) =>
+            JSON.parse(String(value)) as { status: string; url?: string }
+        );
       assert.ok(
         saved.some(
           (record) =>

@@ -45,7 +45,8 @@ function scrubSeries(series: Series, username: string): void {
     keyof typeof series.templates
   >) {
     const value = series.templates[kind];
-    if (value !== undefined) series.templates[kind] = redactText(value, username);
+    if (value !== undefined)
+      series.templates[kind] = redactText(value, username);
   }
   for (const key of Object.keys(series.postOverrides ?? {})) {
     const edit = series.postOverrides?.[key];
@@ -59,8 +60,11 @@ function scrubSeries(series: Series, username: string): void {
 
 function scrubStored(value: unknown, username: string): unknown {
   if (typeof value === 'string')
-    return value.toLowerCase() === username ? '[deleted]' : redactText(value, username);
-  if (Array.isArray(value)) return value.map((item) => scrubStored(item, username));
+    return value.toLowerCase() === username
+      ? '[deleted]'
+      : redactText(value, username);
+  if (Array.isArray(value))
+    return value.map((item) => scrubStored(item, username));
   if (!value || typeof value !== 'object') return value;
   const input = value as Record<string, unknown>;
   const output: Record<string, unknown> = {};
@@ -171,7 +175,8 @@ export async function requestPersonalDataDeletion(
     await tx.set(JOB, JSON.stringify(next));
     const result = await tx.exec();
     executed = true;
-    if (!result?.length) throw Error('Settings changed. Reopen the dashboard and retry.');
+    if (!result?.length)
+      throw Error('Settings changed. Reopen the dashboard and retry.');
   } finally {
     if (!executed) await tx.unwatch();
   }
@@ -210,12 +215,17 @@ export async function processPersonalDataDeletion(): Promise<void> {
       for (let n = active.scanMonth; n < end; n++) {
         const month = `${2000 + Math.floor(n / 12)}-${String((n % 12) + 1).padStart(2, '0')}`;
         for (const series of cfg.series) {
-          const index = await redis.hGetAll(`crew:history:${series.id}:${month}`);
+          const index = await redis.hGetAll(
+            `crew:history:${series.id}:${month}`
+          );
           const keys = Object.keys(index).filter((key) =>
             key.startsWith(`crew:post:${series.id}:`)
           );
           if (keys.length)
-            await redis.hSet(workKey, Object.fromEntries(keys.map((key) => [key, '1'])));
+            await redis.hSet(
+              workKey,
+              Object.fromEntries(keys.map((key) => [key, '1']))
+            );
         }
       }
       active.scanMonth = end;
@@ -243,7 +253,8 @@ export async function processPersonalDataDeletion(): Promise<void> {
     await redis.del(JOB);
   } catch (error) {
     active.state = 'failed';
-    active.error = error instanceof Error ? error.message : 'Personal-data cleanup failed.';
+    active.error =
+      error instanceof Error ? error.message : 'Personal-data cleanup failed.';
     await saveJob(active);
   }
 }

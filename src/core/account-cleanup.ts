@@ -65,7 +65,8 @@ async function removeActiveAccess(username: string): Promise<void> {
     await tx.set(CONFIG, JSON.stringify(cfg));
     const result = await tx.exec();
     executed = true;
-    if (!result?.length) throw Error('Settings changed while checking accounts.');
+    if (!result?.length)
+      throw Error('Settings changed while checking accounts.');
   } finally {
     if (!executed) await tx.unwatch();
   }
@@ -92,10 +93,16 @@ export async function checkTrackedAccounts(now = new Date()): Promise<void> {
       continue;
     }
 
-    const previous = statuses[key] ? (JSON.parse(statuses[key]!) as AccountStatus) : undefined;
+    const previous = statuses[key]
+      ? (JSON.parse(statuses[key]!) as AccountStatus)
+      : undefined;
     const firstMissingAt = previous?.firstMissingAt ?? now.toISOString();
     const checks = (previous?.checks ?? 0) + 1;
-    const next: AccountStatus = { username: account.username, firstMissingAt, checks };
+    const next: AccountStatus = {
+      username: account.username,
+      firstMissingAt,
+      checks,
+    };
     if (
       checks >= REQUIRED_CHECKS &&
       now.getTime() - Date.parse(firstMissingAt) >= MIN_CONFIRMATION_AGE

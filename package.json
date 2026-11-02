@@ -12,6 +12,7 @@
     "lint": "eslint \"src/**/*.{ts,tsx,js}\"",
     "login": "devvit login",
     "prettier": "prettier --write .",
+    "format:check": "prettier --check .",
     "test:types": "tsc --build && tsc -p tsconfig.client.json",
     "test:unit": "node --experimental-strip-types --experimental-test-module-mocks --no-warnings=ExperimentalWarning --test \"src/**/*.test.ts\""
   },

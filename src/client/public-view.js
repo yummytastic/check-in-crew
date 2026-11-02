@@ -155,12 +155,16 @@ export function createPublicView(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
-          flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
-          messageOverride: screen.querySelector('#moderator-guidance-custom').checked
+          removalReasonId: screen.querySelector('#moderator-guidance-reason')
+            .value,
+          flairTemplateId: screen.querySelector('#moderator-guidance-flair')
+            .value,
+          messageOverride: screen.querySelector('#moderator-guidance-custom')
+            .checked
             ? screen.querySelector('#moderator-guidance-message').value
             : '',
-          autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
+          autoApprove: screen.querySelector('#moderator-guidance-approve')
+            .checked,
         }),
       });
       const data = await response.json();
@@ -168,12 +172,16 @@ export function createPublicView(
         throw Error(data.error || 'Unable to save moderator tools.');
       moderatorToolsData = {
         ...moderatorToolsData,
-        removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
-        flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
-        messageOverride: screen.querySelector('#moderator-guidance-custom').checked
+        removalReasonId: screen.querySelector('#moderator-guidance-reason')
+          .value,
+        flairTemplateId: screen.querySelector('#moderator-guidance-flair')
+          .value,
+        messageOverride: screen.querySelector('#moderator-guidance-custom')
+          .checked
           ? screen.querySelector('#moderator-guidance-message').value
           : '',
-        autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
+        autoApprove: screen.querySelector('#moderator-guidance-approve')
+          .checked,
       };
       moderatorToolsStatus = 'Saved.';
     } catch (error) {
@@ -254,18 +262,25 @@ export function createPublicView(
             : '') + button('moderator-tools-back', 'Back', true);
     } else if (view === 'about') {
       heading = 'About Check-In Crew';
-      content = '<p>Check-In Crew helps moderators and volunteer hosts run scheduled community check-ins and recurring posts.</p><p>You can use the available calculator and flair tools. If you have questions or need management access, contact the community moderators through modmail.</p>';
+      content =
+        '<p>Check-In Crew helps moderators and volunteer hosts run scheduled community check-ins and recurring posts.</p><p>You can use the available calculator and flair tools. If you have questions or need management access, contact the community moderators through modmail.</p>';
       footer = button('about-back', 'Back', true);
     } else if (view === 'inputs') {
-      heading = calculatorMode === 'bmi' ? 'BMI calculator' : 'Calorie needs calculator';
-      const calorieFields = calculatorMode === 'bmi' ? '' : `${input('age', 'Age (18+)', 'numeric')}${select(
-        'sex',
-        'Sex used by formula',
-        [
-          ['female', 'Female'],
-          ['male', 'Male'],
-        ]
-      )}`;
+      heading =
+        calculatorMode === 'bmi'
+          ? 'BMI calculator'
+          : 'Calorie needs calculator';
+      const calorieFields =
+        calculatorMode === 'bmi'
+          ? ''
+          : `${input('age', 'Age (18+)', 'numeric')}${select(
+              'sex',
+              'Sex used by formula',
+              [
+                ['female', 'Female'],
+                ['male', 'Male'],
+              ]
+            )}`;
       content = `<form id="calculator-form" novalidate autocomplete="off"><div class="calculator-grid">${calorieFields}<div class="measurement-group"><label><span class="unit-label">Height units</span><select id="calc-height-units"><option value="cm"${heightUnits === 'cm' ? ' selected' : ''}>Centimetres</option><option value="ft"${heightUnits === 'ft' ? ' selected' : ''}>Feet &amp; inches</option></select></label>${heightUnits === 'cm' ? input('height', 'Height (cm)') : `<div class="split-measurement">${input('feet', 'Feet', 'numeric')}${input('inches', 'Inches')}</div>`}</div><div class="measurement-group"><label><span class="unit-label">Weight units</span><select id="calc-weight-units">${[
         ['kg', 'Kilograms'],
         ['lb', 'Pounds'],
@@ -277,11 +292,15 @@ export function createPublicView(
         )
         .join(
           ''
-      )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div>${calculatorMode === 'bmi' ? '' : `<div class="activity-field">${select(
-        'activity',
-        'Activity level',
-        activityLevels.map((level) => [level.id, level.label])
-      )}</div>`}<p id="activity-description" class="public-muted">${calculatorMode === 'bmi' ? 'BMI is an adult screening measure, not a diagnosis.' : esc(activityDescription())}</p></div></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
+        )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div>${
+        calculatorMode === 'bmi'
+          ? ''
+          : `<div class="activity-field">${select(
+              'activity',
+              'Activity level',
+              activityLevels.map((level) => [level.id, level.label])
+            )}</div>`
+      }<p id="activity-description" class="public-muted">${calculatorMode === 'bmi' ? 'BMI is an adult screening measure, not a diagnosis.' : esc(activityDescription())}</p></div></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
       footer =
         '<button type="submit" form="calculator-form" id="calculator-submit">Calculate</button>' +
         button('calculator-back', 'Back', true) +
@@ -290,7 +309,10 @@ export function createPublicView(
           : button('calculator-access', 'About Check-In Crew', true));
     } else if (view === 'results') {
       heading = 'Your estimate';
-      content = calculatorMode === 'bmi' ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>` : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
+      content =
+        calculatorMode === 'bmi'
+          ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`
+          : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
       footer =
         button('calculator-edit', 'Edit details') +
         button('calculator-home', 'Back to home', true);
@@ -377,11 +399,13 @@ export function createPublicView(
         (item) => item.id === guidanceReason?.value
       )?.message ?? '';
     guidanceReason?.addEventListener('change', () => {
-      if (!guidanceCustom.checked) guidanceMessage.value = selectedReasonMessage();
+      if (!guidanceCustom.checked)
+        guidanceMessage.value = selectedReasonMessage();
     });
     guidanceCustom?.addEventListener('change', () => {
       guidanceMessage.readOnly = !guidanceCustom.checked;
-      if (!guidanceCustom.checked) guidanceMessage.value = selectedReasonMessage();
+      if (!guidanceCustom.checked)
+        guidanceMessage.value = selectedReasonMessage();
       else guidanceMessage.focus();
     });
     if (root.querySelector('#public-check-access'))
@@ -604,7 +628,7 @@ export function createPublicView(
           const replacement = document.createElement('button');
           replacement.type = 'button';
           replacement.className = 'secondary';
-            replacement.id =
+          replacement.id =
             access === 'authorised'
               ? 'public-open-dashboard'
               : 'calculator-access';
@@ -627,12 +651,16 @@ export function createPublicView(
         view = 'home';
       }
       community = options.community ?? '';
-      publicWelcome = typeof options.publicWelcome === 'string' ? options.publicWelcome : '';
-      authorisedWelcome = typeof options.authorisedWelcome === 'string' ? options.authorisedWelcome : '';
+      publicWelcome =
+        typeof options.publicWelcome === 'string' ? options.publicWelcome : '';
+      authorisedWelcome =
+        typeof options.authorisedWelcome === 'string'
+          ? options.authorisedWelcome
+          : '';
       publicFailed = Boolean(options.failed);
-        if (!optionsLoaded && !publicFailed) {
-          optionsLoaded = true;
-          view = 'home';
+      if (!optionsLoaded && !publicFailed) {
+        optionsLoaded = true;
+        view = 'home';
       }
       if (!enabled && ['inputs', 'results', 'help'].includes(view))
         view = 'home';

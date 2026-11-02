@@ -460,10 +460,16 @@ void test('a failed follow-up step keeps the post recorded as posted', async () 
     sends++;
     return { id: 't3_one', url: 'https://reddit.com/one' };
   };
-  const saved = await publishOnce(store, 'slot', 'scheduler', send, async () => {
-    followUps++;
-    throw new Error('Both sticky slots are taken');
-  });
+  const saved = await publishOnce(
+    store,
+    'slot',
+    'scheduler',
+    send,
+    async () => {
+      followUps++;
+      throw new Error('Both sticky slots are taken');
+    }
+  );
   assert.equal(saved.status, 'posted');
   assert.equal(saved.postId, 't3_one');
   assert.equal((await store.read('slot'))?.url, 'https://reddit.com/one');

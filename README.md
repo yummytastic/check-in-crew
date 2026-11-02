@@ -12,10 +12,10 @@ Check-In Crew handles posting while your community supplies the conversation. Ru
 
 A **series** is a group of posts with its own schedule, templates and maintainers. **Maximum series** in app settings defaults to 10 and accepts 1–60. Paused series count; archived series do not. Higher limits can slow the dashboard and increase scheduled posting work, especially with hourly schedules or large preview windows. Lowering the limit does not remove or pause existing series; creation and restoration require a free slot.
 
-| Type                       | How it works                                                                                                                                   | Example                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Type                       | How it works                                                                                                                                                     | Example                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **Monthly series**         | A start post, daily check-ins, and a finish post on the last day. Each series can also post a check-in on day one and the last day. Repeats each calendar month. | Accountability challenges, reading groups or community projects. |
-| **Simple recurring posts** | One template repeated daily, weekly or on an **Other** schedule, with individually editable upcoming posts.                                    | Weekly goal setting, daily discussion or monthly reminders.      |
+| **Simple recurring posts** | One template repeated daily, weekly or on an **Other** schedule, with individually editable upcoming posts.                                                      | Weekly goal setting, daily discussion or monthly reminders.      |
 
 Monthly series follow actual calendar months, including leap years. In each series' settings, **Also post a check-in on day 1?** is on by default and **Also post a check-in on the last day of the month?** is off by default. Existing series retain those defaults until changed. The start and finish posts remain scheduled either way. Default titles use “30 Day Accountability Challenge”; edit them to suit your community.
 
@@ -192,20 +192,20 @@ Editing closes at the scheduled time or when publication starts. Past posts have
 
 Use single braces as shown below. Title editors provide buttons to insert supported shortcodes.
 
-| Shortcode          | Meaning                                                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `{series}`         | Series display name.                                                                                       |
-| `{frequency}`      | Daily, Weekly or Recurring, according to the simple series' pattern.                                       |
-| `{weekday}`        | Full weekday name, such as Monday.                                                                         |
-| `{date}`           | Scheduled date in YYYY-MM-DD format.                                                                       |
-| `{time}`           | Occurrence's local posting time; useful in hourly titles.                                                  |
-| `{day}`            | Day number within the calendar month.                                                                      |
-| `{month}`          | Month and year, such as September 2026.                                                                    |
-| `{host_credit_monthly}` | Formatted monthly-series credit; use in monthly post bodies.                                         |
-| `{host_credit_simple}` | Formatted simple-series credit; it is blank until that series enables host credit.                    |
-| `{community_note}` | Current community note from app settings; use in bodies.                                                   |
-| `{signup_link}`    | Link to the month's recorded signup post, where available; intended for monthly bodies.                    |
-| `{previous_link}`  | Link to the previous calendar day's recorded daily check-in, where available; intended for monthly bodies. |
+| Shortcode               | Meaning                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `{series}`              | Series display name.                                                                                       |
+| `{frequency}`           | Daily, Weekly or Recurring, according to the simple series' pattern.                                       |
+| `{weekday}`             | Full weekday name, such as Monday.                                                                         |
+| `{date}`                | Scheduled date in YYYY-MM-DD format.                                                                       |
+| `{time}`                | Occurrence's local posting time; useful in hourly titles.                                                  |
+| `{day}`                 | Day number within the calendar month.                                                                      |
+| `{month}`               | Month and year, such as September 2026.                                                                    |
+| `{host_credit_monthly}` | Formatted monthly-series credit; use in monthly post bodies.                                               |
+| `{host_credit_simple}`  | Formatted simple-series credit; it is blank until that series enables host credit.                         |
+| `{community_note}`      | Current community note from app settings; use in bodies.                                                   |
+| `{signup_link}`         | Link to the month's recorded signup post, where available; intended for monthly bodies.                    |
+| `{previous_link}`       | Link to the previous calendar day's recorded daily check-in, where available; intended for monthly bodies. |
 
 For example: `Weekly {series} — {weekday} {date}`. Use `{weekday}` for Monday or Tuesday; `{day}` gives a number. Link shortcodes are not general navigation between arbitrary recurring occurrences.
 

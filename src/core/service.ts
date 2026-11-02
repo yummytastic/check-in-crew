@@ -172,7 +172,10 @@ export async function configuredHostCredit(): Promise<string> {
 }
 export async function configuredSimpleHostCredit(): Promise<string> {
   const value = await settings.get<string>('defaultSimpleHostCredit');
-  return typeof value === 'string' && value.trim() && value.length <= 300 && !/[\r\n]/.test(value)
+  return typeof value === 'string' &&
+    value.trim() &&
+    value.length <= 300 &&
+    !/[\r\n]/.test(value)
     ? value
     : defaultHostCreditTemplate();
 }
