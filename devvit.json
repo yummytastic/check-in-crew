@@ -51,6 +51,12 @@
             "helpText": "Shows Post now beside unposted topics. It creates a real post immediately, even while paused, and prevents the scheduler from posting that topic again. Turning this off hides Post now; automatic posting continues.",
             "defaultValue": false
           },
+          "alertFailedPosts": {
+            "type": "boolean",
+            "label": "Alert moderators about missing scheduled posts",
+            "helpText": "Sends one modmail notification when a scheduled post fails repeatedly or Reddit does not confirm it, so it can be checked the same day. Turning this off does not affect posting.",
+            "defaultValue": true
+          },
           "showCrewFooter": {
             "type": "boolean",
             "label": "Show app footer",

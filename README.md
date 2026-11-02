@@ -74,7 +74,7 @@ Only the authenticated account in the current community can be updated. The app 
 
 ## Maintainers and hosts
 
-The native **Check-In Crew** subreddit menu is a small management hub: **Open dashboard**, **View publication history**, **Emergency pause selected series**, and moderator-only **Assign volunteer maintainers** and **Fix a missing publication record**. Creation, scheduling, templates, host credits and manual posting are in the full dashboard. Emergency pause works without loading the dashboard; resuming is done there after review. The history view lists publication records, not general diagnostic logs.
+The native **Check-In Crew** subreddit menu is a small management hub: **Open dashboard**, **View publication history**, **Emergency pause selected series**, and moderator-only **Assign volunteer maintainers** and **Fix a missing publication record**. Creation, scheduling, templates, host credits and manual posting are in the full dashboard. Emergency pause works without loading the dashboard; resuming is done there after review. The history view lists publication records, not general diagnostic logs. If a scheduled post fails on repeated attempts, or Reddit does not confirm it, moderators receive one modmail notification for that post with the steps to resolve it; **General → Alert moderators about missing scheduled posts** turns this off.
 
 **Maintainers** can manage an assigned series. **Hosts** receive credit in its posts. Someone can be both, but a host credit alone does not grant access.
 

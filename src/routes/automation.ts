@@ -1,5 +1,11 @@
 import { Hono } from 'hono';
-import { config, publish } from '../core/service.ts';
+import {
+  config,
+  publicationKey,
+  publicationStore,
+  publish,
+} from '../core/service.ts';
+import { checkPublication, recordFailure } from '../core/alerts.ts';
 import { dueSlots } from '../core/model.ts';
 import { processSeriesDeletions } from '../core/deletion.ts';
 import { processPersonalDataDeletion } from '../core/privacy.ts';
@@ -11,8 +17,10 @@ automation.post('/scheduler/tick', async (c) => {
   let failures = 0;
   for (const series of cfg.series) {
     for (const slot of dueSlots(series, now)) {
+      const key = publicationKey(series.id, slot);
       try {
-        await publish(series.id, slot, 'scheduler', true);
+        const record = await publish(series.id, slot, 'scheduler', true);
+        await checkPublication(key, series, slot, record, now);
       } catch (error) {
         failures++;
         console.error(
@@ -22,6 +30,18 @@ automation.post('/scheduler/tick', async (c) => {
           slot.kind,
           error
         );
+        try {
+          await recordFailure(
+            key,
+            series,
+            slot,
+            await publicationStore.read(key),
+            error,
+            now
+          );
+        } catch (alertError) {
+          console.error('Could not alert moderators', series.id, alertError);
+        }
       }
     }
   }

@@ -9,7 +9,14 @@ import {
 } from '../core/model.ts';
 
 const records = new Map<string, string>();
-const ctx = { userId: 't2_admin', subredditName: 'loseit_test' };
+const ctx = {
+  userId: 't2_admin',
+  subredditName: 'loseit_test',
+  subredditId: 't5_test',
+};
+const modmailAlerts: { subject: string; bodyMarkdown: string }[] = [];
+let failSubmit = false;
+let failReserve = false;
 let banned = false;
 let failIdentity = false;
 const missingAccounts = new Set<string>();
@@ -111,6 +118,12 @@ const fakeRedis = {
   async del(key: string) {
     records.delete(key);
   },
+  async incrBy(key: string, value: number) {
+    const next = Number(records.get(key) ?? 0) + value;
+    records.set(key, String(next));
+    return next;
+  },
+  async expire() {},
   async hSet(key: string, fields: Record<string, string>) {
     const hash = JSON.parse(records.get(key) ?? '{}') as Record<string, string>;
     records.set(key, JSON.stringify({ ...hash, ...fields }));
@@ -126,6 +139,7 @@ const fakeRedis = {
     return fields.length;
   },
   async watch(...keys: string[]) {
+    if (failReserve) throw Error('Redis temporarily unavailable');
     const before = keys.map((key) => records.get(key));
     const tasks: (() => Promise<unknown>)[] = [];
     return {
@@ -206,6 +220,15 @@ mock.module('@devvit/web/server', {
         flairCalls.push(options);
         fakePost.flair = { templateId: options.flairTemplateId };
       },
+      modMail: {
+        async createModNotification(message: {
+          subject: string;
+          bodyMarkdown: string;
+        }) {
+          modmailAlerts.push(message);
+          return 'conversation';
+        },
+      },
       async getAppUser() {
         return { username: 'check-in-crew' };
       },
@@ -217,6 +240,7 @@ mock.module('@devvit/web/server', {
         };
       },
       async submitPost(content: { title: string; text: string }) {
+        if (failSubmit) throw Error('Response lost after submission');
         sent++;
         submitted.push(content);
         return {
@@ -254,6 +278,7 @@ const { processPersonalDataDeletion } = await import('../core/privacy.ts');
 const { checkTrackedAccounts } = await import('../core/account-cleanup.ts');
 const { api } = await import('./api.ts');
 const { triggers } = await import('./triggers.ts');
+const { recordProblem } = await import('../core/alerts.ts');
 const {
   publish,
   config,
@@ -325,6 +350,9 @@ function reset(): Config {
   beforeExec = undefined;
   stickyPositions.length = 0;
   failSticky = false;
+  failSubmit = false;
+  failReserve = false;
+  modmailAlerts.length = 0;
   guidanceEvents.length = 0;
   removed = 0;
   deleted = 0;
@@ -452,6 +480,26 @@ void test('teen guidance selects live reason and flair, then approves by default
     'flair',
     'approve',
   ]);
+});
+void test('only uncertain or long-pending publications count as problems', () => {
+  const now = new Date('2026-11-02T12:00:00Z');
+  const record = (
+    status: 'pending' | 'posted' | 'uncertain',
+    minutes: number
+  ) => ({
+    status,
+    actor: 'scheduler',
+    at: new Date(now.getTime() - minutes * 60_000).toISOString(),
+  });
+  assert.equal(recordProblem(undefined, now), undefined);
+  assert.equal(recordProblem(record('posted', 60), now), undefined);
+  assert.equal(recordProblem(record('pending', 5), now), undefined);
+  assert.deepEqual(recordProblem(record('pending', 16), now), {
+    kind: 'stuck',
+  });
+  assert.deepEqual(recordProblem(record('uncertain', 0), now), {
+    kind: 'uncertain',
+  });
 });
 void test('moderator removal-reason flair is saved off by default and flairs via the mod log', async () => {
   reset();
@@ -2368,6 +2416,64 @@ void test('server form and automation integration', async (t) => {
       assert.equal(sent, 0);
     }
   );
+  await t.test(
+    'an unconfirmed scheduled post alerts moderators once',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.enabled = true;
+      cfg.series[0]!.time = '00:00';
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      failSubmit = true;
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      const due = modmailAlerts.length;
+      assert.ok(due >= 1);
+      assert.match(modmailAlerts[0]!.subject, /may be missing/);
+      assert.match(modmailAlerts[0]!.bodyMarkdown, /did not confirm/);
+      assert.match(modmailAlerts[0]!.bodyMarkdown, /EU/);
+      // Uncertain posts are never retried, and the alert is not repeated.
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.equal(modmailAlerts.length, due);
+      assert.equal(sent, 0);
+    }
+  );
+  await t.test(
+    'repeated scheduler failures alert once; a single failure does not',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.enabled = true;
+      cfg.series[0]!.time = '00:00';
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      failReserve = true;
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.equal(modmailAlerts.length, 0);
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      const due = modmailAlerts.length;
+      assert.ok(due >= 1);
+      assert.match(
+        modmailAlerts[0]!.bodyMarkdown,
+        /failed on repeated attempts/
+      );
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.equal(modmailAlerts.length, due);
+      // Recovery publishes normally without further alerts.
+      failReserve = false;
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.ok(sent >= 1);
+      assert.equal(modmailAlerts.length, due);
+    }
+  );
+  await t.test('failure alerts can be turned off', async () => {
+    const cfg = reset();
+    cfg.series[0]!.enabled = true;
+    cfg.series[0]!.time = '00:00';
+    records.set('crew:config:v1', JSON.stringify(cfg));
+    installationSettings.set('alertFailedPosts', false);
+    failSubmit = true;
+    await automation.request('/scheduler/tick', { method: 'POST' });
+    await automation.request('/scheduler/tick', { method: 'POST' });
+    assert.equal(modmailAlerts.length, 0);
+    installationSettings.delete('alertFailedPosts');
+  });
   await t.test(
     'paused scheduler never publishes; repeated scheduled runs do not duplicate',
     async () => {
