@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { validateFlairFormat } from '../tools/flair.ts';
+import {
+  TEEN_GUIDANCE_KEY,
+  parseTeenGuidance,
+  type TeenGuidanceConfig,
+} from '../core/teen-guidance.ts';
 import { redis, context, reddit, settings } from '@devvit/web/server';
 import type { UiResponse } from '@devvit/web/shared';
 import type { FormField } from '@devvit/shared-types/shared/form.js';
@@ -92,41 +97,8 @@ const DASHBOARD_KEY = 'crew:dashboard:v1';
 const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
 const BMI_MODERATORS_ONLY_SETTING = 'communityCalculatorModeratorsOnly';
 const TEEN_GUIDANCE_MESSAGE_SETTING = 'teenGuidanceMessage';
-const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
-type TeenGuidanceConfig = {
-  removalReasonId: string;
-  flairTemplateId: string;
-  messageOverride: string;
-  autoApprove: boolean;
-};
 async function savedTeenGuidance(): Promise<TeenGuidanceConfig> {
-  const raw = await redis.get(TEEN_GUIDANCE_KEY);
-  if (!raw)
-    return {
-      removalReasonId: '',
-      flairTemplateId: '',
-      messageOverride: '',
-      autoApprove: true,
-    };
-  try {
-    const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
-    return {
-      removalReasonId:
-        typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
-      flairTemplateId:
-        typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
-      messageOverride:
-        typeof value.messageOverride === 'string' ? value.messageOverride : '',
-      autoApprove: value.autoApprove !== false,
-    };
-  } catch {
-    return {
-      removalReasonId: '',
-      flairTemplateId: '',
-      messageOverride: '',
-      autoApprove: true,
-    };
-  }
+  return parseTeenGuidance(await redis.get(TEEN_GUIDANCE_KEY));
 }
 
 async function targetText(targetId: string): Promise<string> {

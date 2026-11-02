@@ -1,9 +1,18 @@
 import { Hono } from 'hono';
+import { context, reddit, redis } from '@devvit/web/server';
 import type {
   OnAppInstallRequest,
   OnAppUpgradeRequest,
+  OnModActionRequest,
   TriggerResponse,
 } from '@devvit/web/shared';
+import {
+  TEEN_GUIDANCE_KEY,
+  flairPostForRemovalReason,
+  parseTeenGuidance,
+  type RemovalReasonFlairDeps,
+  type RemovalReasonLogEntry,
+} from '../core/teen-guidance.ts';
 
 export const triggers = new Hono();
 
@@ -29,4 +38,71 @@ triggers.post('/on-app-upgrade', async (c) => {
     },
     200
   );
+});
+
+const LOG_LOOKUP_DELAYS_MS = [0, 1000, 2000];
+
+async function findRemovalReasonEntry(
+  actionId: string | undefined,
+  postId: string
+): Promise<RemovalReasonLogEntry | undefined> {
+  // The trigger payload has no reason text; the moderation-log entry does.
+  // The log can lag the trigger slightly, so look a few times.
+  for (const delay of LOG_LOOKUP_DELAYS_MS) {
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    const entries = await reddit
+      .getModerationLog({
+        subredditName: context.subredditName,
+        type: 'addremovalreason',
+        limit: 25,
+      })
+      .all();
+    const entry =
+      (actionId && entries.find((item) => item.id === actionId)) ||
+      entries.find((item) => item.target?.id === postId);
+    if (entry) return entry;
+  }
+  return undefined;
+}
+
+const removalReasonFlairDeps = (): RemovalReasonFlairDeps => ({
+  subredditName: context.subredditName,
+  readConfig: async () => parseTeenGuidance(await redis.get(TEEN_GUIDANCE_KEY)),
+  appUsername: async () => (await reddit.getAppUser())?.username,
+  removalReasons: async () =>
+    (
+      await reddit.getSubredditByName(context.subredditName)
+    ).getRemovalReasons(),
+  flairTemplates: () => reddit.getPostFlairTemplates(context.subredditName),
+  findLogEntry: findRemovalReasonEntry,
+  getPost: async (postId) => {
+    const post = await reddit.getPostById(postId as `t3_${string}`);
+    return {
+      subredditName: post.subredditName,
+      flairTemplateId: post.flair?.templateId,
+    };
+  },
+  setPostFlair: async (postId, flairTemplateId) => {
+    await reddit.setPostFlair({
+      subredditName: context.subredditName,
+      postId: postId as `t3_${string}`,
+      flairTemplateId,
+    });
+  },
+  log: (outcome, details) =>
+    console.log('Teen guidance flair:', outcome, JSON.stringify(details)),
+});
+
+triggers.post('/on-mod-action', async (c) => {
+  const input = await c.req.json<OnModActionRequest>();
+  try {
+    await flairPostForRemovalReason(input, removalReasonFlairDeps());
+  } catch (error) {
+    console.error(
+      'Teen guidance flair failed',
+      JSON.stringify({ actionId: input.id, postId: input.targetPost?.id }),
+      error
+    );
+  }
+  return c.json<TriggerResponse>({ status: 'success' }, 200);
 });

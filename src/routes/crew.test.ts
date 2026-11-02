@@ -34,6 +34,13 @@ const removalReasons = [
   },
 ];
 const postFlairs = [{ id: 'flair-teen', text: 'Teenage weight loss' }];
+const flairCalls: { postId: string; flairTemplateId: string }[] = [];
+let modLogEntries: {
+  id: string;
+  moderatorName: string;
+  details?: string;
+  target?: { id: string };
+}[] = [];
 let fakePost = {
   id: 't3_trigger',
   authorName: 'AutoModerator',
@@ -42,6 +49,7 @@ let fakePost = {
   body: '',
   removed: false,
   createdAt: new Date(),
+  flair: undefined as { templateId?: string } | undefined,
   async remove() {
     removed++;
     this.removed = true;
@@ -193,8 +201,20 @@ mock.module('@devvit/web/server', {
       async getPostFlairTemplates() {
         return postFlairs;
       },
-      async setPostFlair() {
+      async setPostFlair(options: { postId: string; flairTemplateId: string }) {
         guidanceEvents.push('flair');
+        flairCalls.push(options);
+        fakePost.flair = { templateId: options.flairTemplateId };
+      },
+      async getAppUser() {
+        return { username: 'check-in-crew' };
+      },
+      getModerationLog() {
+        return {
+          async all() {
+            return modLogEntries;
+          },
+        };
       },
       async submitPost(content: { title: string; text: string }) {
         sent++;
@@ -233,6 +253,7 @@ const { processSeriesDeletions, deletionSettings } =
 const { processPersonalDataDeletion } = await import('../core/privacy.ts');
 const { checkTrackedAccounts } = await import('../core/account-cleanup.ts');
 const { api } = await import('./api.ts');
+const { triggers } = await import('./triggers.ts');
 const {
   publish,
   config,
@@ -431,6 +452,74 @@ void test('teen guidance selects live reason and flair, then approves by default
     'flair',
     'approve',
   ]);
+});
+void test('moderator removal-reason flair is saved off by default and flairs via the mod log', async () => {
+  reset();
+  await fakeRedis.del('crew:teen-guidance:v1');
+  const save = (extra: Record<string, unknown>) =>
+    api.request('/dashboard/teen-guidance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        removalReasonId: 'reason-teen',
+        flairTemplateId: 'flair-teen',
+        messageOverride: '',
+        autoApprove: true,
+        ...extra,
+      }),
+    });
+  const modAction = (body: Record<string, unknown>) =>
+    triggers.request('/on-mod-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ModAction',
+        id: 'ModAction_live',
+        action: 'addremovalreason',
+        subreddit: { name: 'loseit_test' },
+        moderator: { name: 'Yummytastic' },
+        targetPost: { id: 't3_trigger' },
+        ...body,
+      }),
+    });
+  flairCalls.length = 0;
+  fakePost.flair = { templateId: 'flair-other' };
+  modLogEntries = [
+    {
+      id: 'ModAction_live',
+      moderatorName: 'Yummytastic',
+      details: '2: Teenage weight loss',
+      target: { id: 't3_trigger' },
+    },
+  ];
+
+  // An older dashboard that does not send the field leaves it off.
+  assert.equal((await save({})).status, 200);
+  assert.equal(
+    (
+      (await (await api.request('/dashboard/teen-guidance')).json()) as {
+        flairOnModeratorRemoval: boolean;
+      }
+    ).flairOnModeratorRemoval,
+    false
+  );
+  assert.equal((await modAction({})).status, 200);
+  assert.equal(flairCalls.length, 0);
+
+  assert.equal((await save({ flairOnModeratorRemoval: true })).status, 200);
+  // A reason applied to a comment never flairs the containing post.
+  await modAction({ targetComment: { id: 't1_comment' } });
+  assert.equal(flairCalls.length, 0);
+  await modAction({});
+  await modAction({});
+  assert.deepEqual(flairCalls, [
+    {
+      postId: 't3_trigger',
+      flairTemplateId: 'flair-teen',
+      subredditName: 'loseit_test',
+    },
+  ]);
+  fakePost.flair = undefined;
 });
 void test('automatic account checks remove active access without historic deletion', async () => {
   reset();

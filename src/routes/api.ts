@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
 import { flair, flairAvailable } from './flair.ts';
+import {
+  TEEN_GUIDANCE_KEY,
+  parseTeenGuidance,
+  type TeenGuidanceConfig,
+} from '../core/teen-guidance.ts';
 import { context, reddit, settings, redis } from '@devvit/web/server';
 import {
   hostNames,
@@ -76,39 +81,11 @@ async function welcomeSetting(key: string, fallback: string): Promise<string> {
     ? value
     : fallback;
 }
-const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
-type TeenGuidanceConfig = {
-  removalReasonId: string;
-  flairTemplateId: string;
-  messageOverride: string;
-  autoApprove: boolean;
-};
 const requireAdmin = (who: Awaited<ReturnType<typeof identity>>) => {
   if (!who.admin) throw new Error('Moderator access is required.');
 };
-const defaultTeenGuidance: TeenGuidanceConfig = {
-  removalReasonId: '',
-  flairTemplateId: '',
-  messageOverride: '',
-  autoApprove: true,
-};
 async function teenGuidanceConfig(): Promise<TeenGuidanceConfig> {
-  const raw = await redis.get(TEEN_GUIDANCE_KEY);
-  if (!raw) return { ...defaultTeenGuidance };
-  try {
-    const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
-    return {
-      removalReasonId:
-        typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
-      flairTemplateId:
-        typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
-      messageOverride:
-        typeof value.messageOverride === 'string' ? value.messageOverride : '',
-      autoApprove: value.autoApprove !== false,
-    };
-  } catch {
-    return { ...defaultTeenGuidance };
-  }
+  return parseTeenGuidance(await redis.get(TEEN_GUIDANCE_KEY));
 }
 api.get('/dashboard/teen-guidance', async (c) => {
   const who = await identity();
@@ -162,6 +139,7 @@ api.post('/dashboard/teen-guidance', async (c) => {
     flairTemplateId,
     messageOverride,
     autoApprove: body.autoApprove !== false,
+    flairOnModeratorRemoval: body.flairOnModeratorRemoval === true,
   };
   await redis.set(TEEN_GUIDANCE_KEY, JSON.stringify(saved));
   return c.json({ ok: true });
