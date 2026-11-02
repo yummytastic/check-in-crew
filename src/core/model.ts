@@ -447,7 +447,10 @@ export async function publishOnce(
   store: PublisherStore,
   key: string,
   actor: string,
-  send: () => Promise<{ id: string; url: string }>
+  send: () => Promise<{ id: string; url: string }>,
+  // Follow-up work on a post that already exists (e.g. pinning). It runs only
+  // after the post is recorded, and its failures never mark the post uncertain.
+  afterSave?: () => Promise<void>
 ): Promise<Publication> {
   const record: Publication = {
     status: 'pending',
@@ -462,19 +465,27 @@ export async function publishOnce(
       );
     return existing;
   }
+  let saved: Publication;
   try {
     const post = await send();
-    const saved: Publication = {
+    saved = {
       ...record,
       status: 'posted',
       postId: post.id,
       url: post.url,
     };
     await store.write(key, saved);
-    return saved;
   } catch (error) {
     // A timeout may occur after Reddit accepted the post. Never blindly retry.
     await store.write(key, { ...record, status: 'uncertain' });
     throw error;
   }
+  if (afterSave) {
+    try {
+      await afterSave();
+    } catch (error) {
+      console.error('Post published, but follow-up step failed', key, error);
+    }
+  }
+  return saved;
 }

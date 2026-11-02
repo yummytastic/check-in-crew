@@ -671,16 +671,28 @@ export async function publish(
       }
     },
   };
-  return publishOnce(guardedStore, key, actor, async () => {
-    const post = await reddit.submitPost({
-      subredditName: context.subredditName,
-      title: content.title,
-      text: content.text,
-    });
-    const sticky = series.sticky[slot.kind];
-    if (sticky !== 'none') await post.sticky(sticky === 'slot1' ? 1 : 2);
-    return { id: post.id, url: post.url };
-  });
+  const sticky = series.sticky[slot.kind];
+  let pin: (() => Promise<void>) | undefined;
+  return publishOnce(
+    guardedStore,
+    key,
+    actor,
+    async () => {
+      const post = await reddit.submitPost({
+        subredditName: context.subredditName,
+        title: content.title,
+        text: content.text,
+      });
+      if (sticky !== 'none')
+        pin = () => post.sticky(sticky === 'slot1' ? 1 : 2);
+      return { id: post.id, url: post.url };
+    },
+    // Pinning can fail (e.g. both sticky slots taken) after the post is live.
+    // That must not lose track of the post, so it runs after it is recorded.
+    async () => {
+      await pin?.();
+    }
+  );
 }
 export async function resolveMembers(names: string, through: string) {
   const values = [

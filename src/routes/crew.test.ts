@@ -19,6 +19,7 @@ let sent = 0;
 const submitted: { title: string; text: string }[] = [];
 let beforeExec: (() => void) | undefined;
 const stickyPositions: number[] = [];
+let failSticky = false;
 let removed = 0;
 let deleted = 0;
 let failDelete = false;
@@ -192,6 +193,7 @@ mock.module('@devvit/web/server', {
           id: 't3_post',
           url: 'https://www.reddit.com/r/loseit_test/comments/post',
           async sticky(position: number) {
+            if (failSticky) throw new Error('Sticky slots are full');
             stickyPositions.push(position);
           },
         };
@@ -291,6 +293,7 @@ function reset(): Config {
   submitted.length = 0;
   beforeExec = undefined;
   stickyPositions.length = 0;
+  failSticky = false;
   guidanceEvents.length = 0;
   removed = 0;
   deleted = 0;
@@ -2144,6 +2147,37 @@ void test('server form and automation integration', async (t) => {
           .navigateTo
       );
       assert.deepEqual(stickyPositions, [2]);
+    }
+  );
+  await t.test(
+    'a pinning failure still records the published post',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.sticky = {
+        signup: 'slot1',
+        daily: 'slot2',
+        roundup: 'slot2',
+      };
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      failSticky = true;
+      const dateForm = await openAction('preview');
+      const review = await request('/form/preview', fields(dateForm));
+      assert.ok(
+        (await request('/form/publish', { ...fields(review), confirmed: true }))
+          .navigateTo
+      );
+      assert.equal(sent, 1);
+      const saved = [...records.entries()]
+        .filter(([key]) => key.startsWith('crew:post:'))
+        .map(([, value]) => JSON.parse(String(value)) as { status: string; url?: string });
+      assert.ok(
+        saved.some(
+          (record) =>
+            record.status === 'posted' &&
+            record.url === 'https://www.reddit.com/r/loseit_test/comments/post'
+        ),
+        JSON.stringify(saved)
+      );
     }
   );
   await t.test(
