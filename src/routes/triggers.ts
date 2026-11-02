@@ -41,11 +41,12 @@ triggers.post('/on-app-upgrade', async (c) => {
   );
 });
 
-const LOG_LOOKUP_DELAYS_MS = [0, 1000, 2000];
+const LOG_LOOKUP_DELAYS_MS = [0, 1000, 2000, 4000];
 
 async function findRemovalReasonEntry(
   actionId: string
 ): Promise<RemovalReasonLogEntry | undefined> {
+  let latest: RemovalReasonLogEntry[] = [];
   // The trigger payload has no reason text; the moderation-log entry does.
   // The log can lag the trigger slightly, so look for this exact action a few
   // times. Never fall back to another entry for the same post.
@@ -60,7 +61,18 @@ async function findRemovalReasonEntry(
       .all();
     const entry = findModAction(entries, actionId);
     if (entry) return entry;
+    latest = entries;
   }
+  // IDs only: shows whether the action is missing or its ID format differs.
+  console.log(
+    'Teen guidance flair: action not in moderation log',
+    JSON.stringify({
+      actionId,
+      recentEntries: latest
+        .slice(0, 5)
+        .map((item) => ({ id: item.id, targetId: item.target?.id })),
+    })
+  );
   return undefined;
 }
 

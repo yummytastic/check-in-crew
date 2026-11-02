@@ -162,7 +162,11 @@ export async function flairPostForRemovalReason(
   // Every moderator action reaches this handler; leave unrelated ones quietly.
   if (event.action !== 'addremovalreason') return 'ignored';
   const config = await deps.readConfig();
-  if (!config.flairOnModeratorRemoval) return 'disabled';
+  if (!config.flairOnModeratorRemoval) {
+    // Logged (IDs only) so a playtest can tell "off" from "not delivered".
+    deps.log('disabled', { actionId: event.id });
+    return 'disabled';
+  }
 
   const postId = event.targetPost?.id ?? '';
   const ids = { actionId: event.id, postId: postId || undefined };

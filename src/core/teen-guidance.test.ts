@@ -387,8 +387,12 @@ void test('unrelated moderator actions and a disabled setting make no Reddit cal
   for (const { calls } of [unrelated, disabled]) {
     assert.equal(calls.reddit, 0);
     assert.equal(calls.setFlair.length, 0);
-    assert.equal(calls.logs.length, 0);
   }
+  // Unrelated actions stay silent; a removal reason while off is logged by ID.
+  assert.equal(unrelated.calls.logs.length, 0);
+  assert.deepEqual(disabled.calls.logs, [
+    { outcome: 'disabled', details: { actionId: 'ModAction_1' } },
+  ]);
 });
 
 void test('missing or foreign event fields are skipped', async () => {
