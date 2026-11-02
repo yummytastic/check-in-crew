@@ -38,12 +38,28 @@ export const activityLevels = [
       'Heavy activity throughout the day AND intensive training. Exceptional, athlete-level workloads; select only if this is your usual routine.',
   },
 ] as const;
+/**
+ * Parses a typed measurement. Accepts a decimal comma ("72,5") as well as a
+ * decimal point. Anything else containing a comma (e.g. "1,234,5" or
+ * "1.234,5") is ambiguous and rejected as NaN.
+ */
+export function parseMeasurement(value: string): number {
+  const text = value.trim();
+  if (text === '') return NaN;
+  const commas = text.split(',').length - 1;
+  if (commas === 0) return Number(text);
+  if (commas === 1 && !text.includes('.'))
+    return Number(text.replace(',', '.'));
+  return NaN;
+}
 export type CalculatorInput = {
   age: number;
   sex: string;
   heightCm: number;
   weightKg: number;
   activity: string;
+  /** Optional body-fat percentage; when given, Katch–McArdle is used. */
+  bodyFat?: number | undefined;
 };
 export type CalculatorErrors = Partial<Record<keyof CalculatorInput, string>>;
 export function validateCalculator(input: CalculatorInput): CalculatorErrors {
@@ -68,16 +84,27 @@ export function validateCalculator(input: CalculatorInput): CalculatorErrors {
     errors.weightKg = 'Check weight: supported range 20–700 kg.';
   if (!activityLevels.some((level) => level.id === input.activity))
     errors.activity = 'Choose an activity level.';
+  if (
+    input.bodyFat !== undefined &&
+    (!Number.isFinite(input.bodyFat) || input.bodyFat < 3 || input.bodyFat > 70)
+  )
+    errors.bodyFat = 'Use a body-fat percentage from 3–70, or leave it blank.';
   return errors;
 }
 export function calculate(input: CalculatorInput) {
   const errors = validateCalculator(input);
   if (Object.keys(errors).length) return { errors };
+  // Katch–McArdle (370 + 21.6 × lean mass in kg) when body fat is known;
+  // otherwise Mifflin–St Jeor. Neither is consistently more accurate.
+  const formula =
+    input.bodyFat === undefined ? 'mifflin-st-jeor' : 'katch-mcardle';
   const resting =
-    10 * input.weightKg +
-    6.25 * input.heightCm -
-    5 * input.age +
-    (input.sex === 'male' ? 5 : -161);
+    formula === 'katch-mcardle'
+      ? 370 + 21.6 * input.weightKg * (1 - input.bodyFat! / 100)
+      : 10 * input.weightKg +
+        6.25 * input.heightCm -
+        5 * input.age +
+        (input.sex === 'male' ? 5 : -161);
   if (resting <= 0)
     return {
       errors: {
@@ -90,8 +117,25 @@ export function calculate(input: CalculatorInput) {
   return {
     errors: {} as CalculatorErrors,
     kcal: Math.round(resting * factor),
+    formula,
     bmi: (input.weightKg / (input.heightCm / 100) ** 2).toFixed(1),
   };
+}
+/**
+ * Estimated maintenance at another weight, with every other detail unchanged.
+ * Shows how the estimate moves with weight; it is not a target.
+ */
+export function compareMaintenance(
+  input: CalculatorInput,
+  otherWeightKg: number
+): { kcal: number; difference: number } | { error: string } {
+  const current = calculate(input);
+  if (current.kcal === undefined)
+    return { error: 'Calculate your current estimate first.' };
+  const other = calculate({ ...input, weightKg: otherWeightKg });
+  if (other.kcal === undefined)
+    return { error: other.errors.weightKg ?? 'Enter a valid weight.' };
+  return { kcal: other.kcal, difference: other.kcal - current.kcal };
 }
 export const poundsToKg = (pounds: number) => pounds * 0.45359237;
 export const kgToPounds = (kg: number) => kg / 0.45359237;

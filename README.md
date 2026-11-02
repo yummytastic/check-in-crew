@@ -12,12 +12,14 @@ Check-In Crew handles posting while your community supplies the conversation. Ru
 
 A **series** is a group of posts with its own schedule, templates and maintainers. **Maximum series** in app settings defaults to 10 and accepts 1–60. Paused series count; archived series do not. Higher limits can slow the dashboard and increase scheduled posting work, especially with hourly schedules or large preview windows. Lowering the limit does not remove or pause existing series; creation and restoration require a free slot.
 
-| Type                       | How it works                                                                                                                                   | Example                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Type                       | How it works                                                                                                                                                     | Example                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **Monthly series**         | A start post, daily check-ins, and a finish post on the last day. Each series can also post a check-in on day one and the last day. Repeats each calendar month. | Accountability challenges, reading groups or community projects. |
-| **Simple recurring posts** | One template repeated daily, weekly or on an **Other** schedule, with individually editable upcoming posts.                                    | Weekly goal setting, daily discussion or monthly reminders.      |
+| **Simple recurring posts** | One template repeated daily, weekly or on an **Other** schedule, with individually editable upcoming posts.                                                      | Weekly goal setting, daily discussion or monthly reminders.      |
 
 Monthly series follow actual calendar months, including leap years. In each series' settings, **Also post a check-in on day 1?** is on by default and **Also post a check-in on the last day of the month?** is off by default. Existing series retain those defaults until changed. The start and finish posts remain scheduled either way. Default titles use “30 Day Accountability Challenge”; edit them to suit your community.
+
+Any series can **Lock posts after this many days** (0 = never, the default; up to 60). About once an hour, Check-In Crew locks its published threads that are older than that, so stale threads stop collecting replies nobody is watching; existing comments stay visible. A thread is recorded as done only once it is locked (or found already locked); if Reddit returns an error, the next hourly check tries again, giving up after five failed attempts. Once done, a thread a moderator unlocks on Reddit is not locked again. Only recent history is checked, so turning the setting on does not lock very old threads.
 
 ## Get started
 
@@ -39,15 +41,17 @@ When the calculator is disabled, the unopened post shows the same compact public
 
 Moderators can enable **Community tools → Enable calorie needs and BMI calculator** in app settings. It is **off by default**. When enabled, anyone who can view the post can use it without signing in or obtaining management access. When disabled, the public home retains its explanation, community link and access notice.
 
-The calculator accepts age, formula sex, height, weight and activity. Height and weight units are independent: choose centimetres or feet/inches for height, and kilograms, pounds, or stone/pounds for weight. Switching units converts entered measurements without changing the calculation; stone must be whole, with the remaining pounds from 0 to under 14. **Calculate** replaces the form with estimated maintenance calories and BMI to one decimal place. **Edit details**, **Back to home** and the help views retain the current inputs. BMI has no categories, colour scale, target ranges or weight recommendations; there are no calorie-deficit prescriptions.
+The calculator accepts age, formula sex, height, weight and activity. Height and weight units are independent: choose centimetres or feet/inches for height, and kilograms, pounds, or stone/pounds for weight. Switching units converts entered measurements without changing the calculation; stone must be whole, with the remaining pounds from 0 to under 14. **Calculate** replaces the form with estimated maintenance calories and BMI to one decimal place. **Edit details**, **Back to home** and the help views retain the current inputs. The calorie result also offers **Compare at another weight**: enter a weight in the same units to see estimated maintenance there, with the other details unchanged, and the difference from now. It is worded as an estimate of maintenance at that weight, never as a target. BMI has no categories, colour scale, target ranges or weight recommendations; there are no calorie-deficit prescriptions.
 
-All measurements and results remain in memory on the device. The calculator does not send them to the server, write them to browser storage, log them or associate them with Reddit accounts. Reloading starts a fresh calculator. Public network responses contain the community name, calculator availability and community welcome copy, plus an access outcome; source navigation contains no measurements.
+All measurements and results remain in memory on the device. The calculator does not send them to the server, write them to browser storage, log them or associate them with Reddit accounts. Reloading starts a fresh calculator. For signed-in members, opening the calculator asks the server once for unit choices inferred from their public flair in this community (for example `lb` or feet and inches); the response contains only those unit choices, never the flair text or any measurement, and nothing is stored. Units switch only while the measurement fields are empty and no unit has been chosen. Public network responses contain the community name, calculator availability and community welcome copy, plus an access outcome and, for signed-in members, inferred unit choices; source navigation contains no measurements.
 
 The public flow is designed for the embedded post, with separate home, inputs, results and help screens. Local browser checks cover widths from 320–720 pixels at heights of 400 and 512 pixels. Essential navigation remains visible; scrolling is available for enlarged text or smaller windows. Reddit mobile clients still require playtesting on-device.
 
 ### Calculation and sources
 
 Uses the simplified [Mifflin–St Jeor resting-energy equation](https://pubmed.ncbi.nlm.nih.gov/2305711/): `10 × kg + 6.25 × cm − 5 × age + constant`, with +5 for the male equation or −161 for the female equation. The sex choice selects a study-derived equation, not a gender label. The original study covered ages 19–78; body composition, health and hormone treatment may affect applicability. This tool is for adults 18+ and is not designed for pregnancy, breastfeeding or clinical nutrition.
+
+**Optional body-fat percentage.** If a body-fat percentage (3–70) is entered, the calculator uses the Katch–McArdle equation instead: `370 + 21.6 × lean mass in kg`, where lean mass is `weight × (1 − body fat ÷ 100)`. It is offered because it is a common alternative in exercise and fitness settings, not because it is more accurate. [Studies comparing prediction equations with measured energy use](https://pmc.ncbi.nlm.nih.gov/articles/PMC7912292/) are mixed: it fits some groups better and others worse, tends to underestimate for very muscular people, and depends on a body-fat figure that is hard to measure. The form and help say that extra detail doesn't necessarily give a more accurate result. Left blank, Mifflin–St Jeor is used as before. The result notes which equation was used, and **Compare at another weight** keeps the same body-fat percentage.
 
 Resting energy is multiplied by 1.2, 1.375, 1.55, 1.725 or 1.9 according to the selected activity level. These conventional estimates are documented in [Orgain Healthcare’s sports-nutrition Q&A, question 2](https://healthcare.orgain.com/media/webinar/qa/MakingGoodAthletesGreatQ_A.pdf); they are approximations, not measured daily expenditure. Activity descriptions are original copy covering daily movement, work and exercise together. Moderate activity pairs movement throughout the day with purposeful exercise 3–5 days a week; the highest choices describe sustained high workloads, not just short workouts. Activity help explains that these estimate maintenance and that a calorie deficit does not determine activity level. These are practical selection guides rather than exact clinical thresholds; [FAO’s discussion of whole-day activity](https://www.fao.org/4/y5686e/y5686e07.htm) provides further context and uses its own classification ranges.
 
@@ -57,7 +61,7 @@ Resting energy is multiplied by 1.2, 1.375, 1.55, 1.725 or 1.9 according to the 
 
 **Set flair** appears in the Community tools section of the public home. From the embedded post, it opens its own full-screen panel, like the dashboard, with no nested app scrollbar; Back closes the panel. It never copies calculator inputs and has no BMI or calorie components. Sign in to Reddit to use it; series-management access is not required.
 
-Choose a named format, fill only the fields it uses, and check the live preview. **Review flair → Apply flair** explicitly replaces your current public flair in this community. The current text is shown first. Empty optional fields and attached labels such as `SW:` disappear; the final text must fit 64 characters. Weight and height fields append selected units; enter the measurement in those units (the flair form labels values, rather than converting them). Reddit may change the styling to the configured template.
+When the member's current flair is exactly what one of the formats would produce, the form opens filled in with those values (and that format), so updating one detail does not mean re-entering the rest. If the flair could match more than one format, nothing is filled in; unit choices are still preselected from units seen in it, such as `lb` or `5'6"`. This happens on the device and nothing is stored. Choose a named format, fill only the fields it uses, and check the live preview. **Review flair → Apply flair** explicitly replaces your current public flair in this community. The current text is shown first. Empty optional fields and attached labels such as `SW:` disappear; the final text must fit 64 characters. Weight and height fields append selected units; enter the measurement in those units (the flair form labels values, rather than converting them). Reddit may change the styling to the configured template.
 
 In app settings:
 
@@ -74,7 +78,7 @@ Only the authenticated account in the current community can be updated. The app 
 
 ## Maintainers and hosts
 
-The native **Check-In Crew** subreddit menu is a small management hub: **Open dashboard**, **View publication history**, **Emergency pause selected series**, and moderator-only **Assign volunteer maintainers** and **Fix a missing publication record**. Creation, scheduling, templates, host credits and manual posting are in the full dashboard. Emergency pause works without loading the dashboard; resuming is done there after review. The history view lists publication records, not general diagnostic logs.
+The native **Check-In Crew** subreddit menu is a small management hub: **Open dashboard**, **View publication history**, **Emergency pause selected series**, and moderator-only **Assign volunteer maintainers** and **Fix a missing publication record**. Creation, scheduling, templates, host credits and manual posting are in the full dashboard. Emergency pause works without loading the dashboard; resuming is done there after review. The history view lists publication records, not general diagnostic logs. In the dashboard, **Show comment counts** under a series' monthly history fetches the current comment total for each published post in that month, so hosts can see which prompts draw conversation. Counts are fetched on request, shown only on that page and not stored; they contain no usernames or comment text. If a scheduled post fails on repeated attempts, or Reddit does not confirm it, moderators receive one modmail notification for that post with the steps to resolve it; **General → Alert moderators about missing scheduled posts** turns this off.
 
 **Maintainers** can manage an assigned series. **Hosts** receive credit in its posts. Someone can be both, but a host credit alone does not grant access.
 
@@ -192,20 +196,20 @@ Editing closes at the scheduled time or when publication starts. Past posts have
 
 Use single braces as shown below. Title editors provide buttons to insert supported shortcodes.
 
-| Shortcode          | Meaning                                                                                                    |
-| ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `{series}`         | Series display name.                                                                                       |
-| `{frequency}`      | Daily, Weekly or Recurring, according to the simple series' pattern.                                       |
-| `{weekday}`        | Full weekday name, such as Monday.                                                                         |
-| `{date}`           | Scheduled date in YYYY-MM-DD format.                                                                       |
-| `{time}`           | Occurrence's local posting time; useful in hourly titles.                                                  |
-| `{day}`            | Day number within the calendar month.                                                                      |
-| `{month}`          | Month and year, such as September 2026.                                                                    |
-| `{host_credit_monthly}` | Formatted monthly-series credit; use in monthly post bodies.                                         |
-| `{host_credit_simple}` | Formatted simple-series credit; it is blank until that series enables host credit.                    |
-| `{community_note}` | Current community note from app settings; use in bodies.                                                   |
-| `{signup_link}`    | Link to the month's recorded signup post, where available; intended for monthly bodies.                    |
-| `{previous_link}`  | Link to the previous calendar day's recorded daily check-in, where available; intended for monthly bodies. |
+| Shortcode               | Meaning                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `{series}`              | Series display name.                                                                                       |
+| `{frequency}`           | Daily, Weekly or Recurring, according to the simple series' pattern.                                       |
+| `{weekday}`             | Full weekday name, such as Monday.                                                                         |
+| `{date}`                | Scheduled date in YYYY-MM-DD format.                                                                       |
+| `{time}`                | Occurrence's local posting time; useful in hourly titles.                                                  |
+| `{day}`                 | Day number within the calendar month.                                                                      |
+| `{month}`               | Month and year, such as September 2026.                                                                    |
+| `{host_credit_monthly}` | Formatted monthly-series credit; use in monthly post bodies.                                               |
+| `{host_credit_simple}`  | Formatted simple-series credit; it is blank until that series enables host credit.                         |
+| `{community_note}`      | Current community note from app settings; use in bodies.                                                   |
+| `{signup_link}`         | Link to the month's recorded signup post, where available; intended for monthly bodies.                    |
+| `{previous_link}`       | Link to the previous calendar day's recorded daily check-in, where available; intended for monthly bodies. |
 
 For example: `Weekly {series} — {weekday} {date}`. Use `{weekday}` for Monday or Tuesday; `{day}` gives a number. Link shortcodes are not general navigation between arbitrary recurring occurrences.
 

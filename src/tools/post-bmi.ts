@@ -89,7 +89,8 @@ export function findPostBmiHints(text: string): PostBmiHints {
 
 export function suggestedHeight(hints: PostBmiHints, unit: 'cm' | 'ft') {
   if (!finite(hints.heightCm)) return {};
-  if (unit === 'cm') return { cm: String(Math.round(hints.heightCm! * 10) / 10) };
+  if (unit === 'cm')
+    return { cm: String(Math.round(hints.heightCm! * 10) / 10) };
   const imperial = cmToImperial(hints.heightCm!);
   return {
     feet: String(imperial.feet),
@@ -97,12 +98,10 @@ export function suggestedHeight(hints: PostBmiHints, unit: 'cm' | 'ft') {
   };
 }
 
-export function suggestedWeight(
-  hints: PostBmiHints,
-  unit: 'kg' | 'lb' | 'st'
-) {
+export function suggestedWeight(hints: PostBmiHints, unit: 'kg' | 'lb' | 'st') {
   if (!finite(hints.weightKg)) return {};
-  if (unit === 'kg') return { kg: String(Math.round(hints.weightKg! * 10) / 10) };
+  if (unit === 'kg')
+    return { kg: String(Math.round(hints.weightKg! * 10) / 10) };
   if (unit === 'lb')
     return { lb: String(Math.round(kgToPounds(hints.weightKg!) * 10) / 10) };
   const imperial = kgToStone(hints.weightKg!);
@@ -116,7 +115,8 @@ export function rawBmiFromPostValues(
   heightCm: number,
   weightKg: number
 ): number | undefined {
-  if (!Number.isFinite(heightCm) || !Number.isFinite(weightKg)) return undefined;
+  if (!Number.isFinite(heightCm) || !Number.isFinite(weightKg))
+    return undefined;
   if (heightCm < 80 || heightCm > 275 || weightKg < 20 || weightKg > 700)
     return undefined;
   return weightKg / (heightCm / 100) ** 2;

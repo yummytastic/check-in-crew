@@ -452,3 +452,31 @@ void test('failure to persist a successful post cannot cause a blind duplicate',
   assert.equal(sends, 1);
   assert.equal(retry.status, 'pending');
 });
+void test('a failed follow-up step keeps the post recorded as posted', async () => {
+  const store = memoryStore();
+  let sends = 0;
+  let followUps = 0;
+  const send = async () => {
+    sends++;
+    return { id: 't3_one', url: 'https://reddit.com/one' };
+  };
+  const saved = await publishOnce(
+    store,
+    'slot',
+    'scheduler',
+    send,
+    async () => {
+      followUps++;
+      throw new Error('Both sticky slots are taken');
+    }
+  );
+  assert.equal(saved.status, 'posted');
+  assert.equal(saved.postId, 't3_one');
+  assert.equal((await store.read('slot'))?.url, 'https://reddit.com/one');
+  const retry = await publishOnce(store, 'slot', 'retry', send, async () => {
+    followUps++;
+  });
+  assert.equal(retry.status, 'posted');
+  assert.equal(sends, 1);
+  assert.equal(followUps, 1);
+});

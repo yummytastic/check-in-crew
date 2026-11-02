@@ -4,26 +4,7 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
-  tseslint.configs.recommended,
   {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ['src/**/*.{ts,tsx,mjs,cjs,js}'],
-    languageOptions: {
-      ecmaVersion: 2023,
-      globals: globals.node,
-      parserOptions: {
-        project: ['./tsconfig.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-  },
-  {
-    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
-    rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
-      '@typescript-eslint/no-unused-vars': ['off'],
-      'no-unused-vars': ['off'],
-    },
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
@@ -32,12 +13,36 @@ export default defineConfig([
       '**/vite.config.ts',
       'devvit.config.ts',
     ],
+  },
+  {
+    files: ['src/**/*.{ts,tsx,js}'],
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {
-      parserOptions: {
-        tsconfigRootDir: import.meta.dirname,
-      },
+      ecmaVersion: 2023,
+      parserOptions: { tsconfigRootDir: import.meta.dirname },
     },
-    plugins: { js },
-    extends: ['js/recommended'],
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      // tsc reports unused locals and parameters (noUnusedLocals/Parameters).
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-unused-vars': 'off',
+    },
+  },
+  {
+    // Server and shared code.
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/client/**'],
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: { project: ['./tsconfig.json'] },
+    },
+  },
+  {
+    // Browser code served by the web views.
+    files: ['src/client/**/*.{js,ts}'],
+    languageOptions: {
+      globals: globals.browser,
+      parserOptions: { project: ['./tsconfig.client.json'] },
+    },
   },
 ]);

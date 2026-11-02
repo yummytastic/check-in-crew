@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { validateFlairFormat } from '../tools/flair.ts';
+import {
+  TEEN_GUIDANCE_KEY,
+  parseTeenGuidance,
+  type TeenGuidanceConfig,
+} from '../core/teen-guidance.ts';
 import { redis, context, reddit, settings } from '@devvit/web/server';
 import type { UiResponse } from '@devvit/web/shared';
 import type { FormField } from '@devvit/shared-types/shared/form.js';
@@ -92,15 +97,8 @@ const DASHBOARD_KEY = 'crew:dashboard:v1';
 const BMI_CALCULATOR_SETTING = 'enableCommunityCalculator';
 const BMI_MODERATORS_ONLY_SETTING = 'communityCalculatorModeratorsOnly';
 const TEEN_GUIDANCE_MESSAGE_SETTING = 'teenGuidanceMessage';
-const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
-type TeenGuidanceConfig = { removalReasonId: string; flairTemplateId: string; messageOverride: string; autoApprove: boolean };
 async function savedTeenGuidance(): Promise<TeenGuidanceConfig> {
-  const raw = await redis.get(TEEN_GUIDANCE_KEY);
-  if (!raw) return { removalReasonId: '', flairTemplateId: '', messageOverride: '', autoApprove: true };
-  try {
-    const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
-    return { removalReasonId: typeof value.removalReasonId === 'string' ? value.removalReasonId : '', flairTemplateId: typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '', messageOverride: typeof value.messageOverride === 'string' ? value.messageOverride : '', autoApprove: value.autoApprove !== false };
-  } catch { return { removalReasonId: '', flairTemplateId: '', messageOverride: '', autoApprove: true }; }
+  return parseTeenGuidance(await redis.get(TEEN_GUIDANCE_KEY));
 }
 
 async function targetText(targetId: string): Promise<string> {
@@ -130,9 +128,9 @@ const measurementField = (
   name,
   label,
   required: true,
-    ...(defaultValue === undefined || !Number.isFinite(defaultValue)
-      ? {}
-      : { defaultValue: String(defaultValue) }),
+  ...(defaultValue === undefined || !Number.isFinite(defaultValue)
+    ? {}
+    : { defaultValue: String(defaultValue) }),
 });
 
 async function form(
@@ -240,12 +238,15 @@ crew.post('/menu/bmi', async (c) => {
   const moderatorsOnly = await settings.get(BMI_MODERATORS_ONLY_SETTING);
   if (!(moderatorsOnly === false || moderatorsOnly === 'false') && !who.admin)
     return c.json<UiResponse>({
-      showToast: 'The post calculator is limited to moderators in this community.',
+      showToast:
+        'The post calculator is limited to moderators in this community.',
     });
   const body = await c.req.json<{ targetId?: unknown }>();
   const targetId = typeof body.targetId === 'string' ? body.targetId : '';
   if (!/^t[13]_[A-Za-z0-9]+$/.test(targetId))
-    return c.json<UiResponse>({ showToast: 'This calculator must be opened from a post or comment.' });
+    return c.json<UiResponse>({
+      showToast: 'This calculator must be opened from a post or comment.',
+    });
   const hints = findPostBmiHints(await targetText(targetId));
   const description = hints.teen
     ? 'This post contains wording that may indicate someone under 18. The calculator is intended for adults and is not suitable for assessing teenagers. We have not suggested values from the post; you may enter adult values manually.'
@@ -295,12 +296,19 @@ crew.post('/menu/teenGuidance', async (c) => {
   const body = await c.req.json<{ targetId?: unknown }>();
   const targetId = typeof body.targetId === 'string' ? body.targetId : '';
   if (!/^t3_[A-Za-z0-9]+$/.test(targetId))
-    return c.json<UiResponse>({ showToast: 'This action must be opened from a post.' });
+    return c.json<UiResponse>({
+      showToast: 'This action must be opened from a post.',
+    });
   const post = await reddit.getPostById(targetId as `t3_${string}`);
   if (post.subredditName.toLowerCase() !== context.subredditName.toLowerCase())
-    return c.json<UiResponse>({ showToast: 'This post belongs to another community.' });
+    return c.json<UiResponse>({
+      showToast: 'This post belongs to another community.',
+    });
   if (!configured.removalReasonId || !configured.flairTemplateId)
-    return c.json<UiResponse>({ showToast: 'Open the Check-In Crew dashboard and choose the guidance removal reason and post flair first.' });
+    return c.json<UiResponse>({
+      showToast:
+        'Open the Check-In Crew dashboard and choose the guidance removal reason and post flair first.',
+    });
   const subreddit = await reddit.getSubredditByName(context.subredditName);
   const [reasons, flairs] = await Promise.all([
     subreddit.getRemovalReasons(),
@@ -309,10 +317,19 @@ crew.post('/menu/teenGuidance', async (c) => {
   const reason = reasons.find((item) => item.id === configured.removalReasonId);
   const flair = flairs.find((item) => item.id === configured.flairTemplateId);
   if (!reason || !flair)
-    return c.json<UiResponse>({ showToast: 'The saved guidance reason or flair is no longer available. Update it in the dashboard.' });
+    return c.json<UiResponse>({
+      showToast:
+        'The saved guidance reason or flair is no longer available. Update it in the dashboard.',
+    });
   const legacyMessage = await settings.get(TEEN_GUIDANCE_MESSAGE_SETTING);
-  const message = configured.messageOverride || (typeof reason.message === 'string' ? reason.message : '') || (typeof legacyMessage === 'string' ? legacyMessage : '');
-  if (!message.trim()) return c.json<UiResponse>({ showToast: 'Set a guidance message in the dashboard first.' });
+  const message =
+    configured.messageOverride ||
+    (typeof reason.message === 'string' ? reason.message : '') ||
+    (typeof legacyMessage === 'string' ? legacyMessage : '');
+  if (!message.trim())
+    return c.json<UiResponse>({
+      showToast: 'Set a guidance message in the dashboard first.',
+    });
   await post.remove(false);
   await post.addRemovalNote({
     reasonId: configured.removalReasonId,
@@ -321,9 +338,17 @@ crew.post('/menu/teenGuidance', async (c) => {
   const comment = await post.addComment({ text: message.trim() });
   await comment.distinguish(true);
   await comment.lock();
-  await reddit.setPostFlair({ subredditName: context.subredditName, postId: post.id, flairTemplateId: configured.flairTemplateId });
+  await reddit.setPostFlair({
+    subredditName: context.subredditName,
+    postId: post.id,
+    flairTemplateId: configured.flairTemplateId,
+  });
   if (configured.autoApprove) await post.approve();
-  return c.json<UiResponse>({ showToast: configured.autoApprove ? 'Guidance added, post flaired, and post approved.' : 'Guidance added and post flaired.' });
+  return c.json<UiResponse>({
+    showToast: configured.autoApprove
+      ? 'Guidance added, post flaired, and post approved.'
+      : 'Guidance added and post flaired.',
+  });
 });
 crew.post('/form/teenGuidance', async (c) => {
   const who = await identity();
@@ -334,7 +359,9 @@ crew.post('/form/teenGuidance', async (c) => {
   if (!/^t3_[A-Za-z0-9]+$/.test(targetId)) throw Error('Choose a valid post.');
   const message = await settings.get(TEEN_GUIDANCE_MESSAGE_SETTING);
   if (typeof message !== 'string' || !message.trim())
-    throw Error('Set a teenage weight-loss guidance message in app settings first.');
+    throw Error(
+      'Set a teenage weight-loss guidance message in app settings first.'
+    );
   const reasonId = choice(v, 'removalReasonId');
   const flairTemplateId = choice(v, 'flairTemplateId');
   const approve = v.approve === true || v.approve === 'true';
@@ -345,9 +372,13 @@ crew.post('/form/teenGuidance', async (c) => {
   ]);
   const reason = reasons.find((reason) => reason.id === reasonId);
   if (!reason)
-    throw Error('That removal reason is no longer available. Reopen the action and choose again.');
+    throw Error(
+      'That removal reason is no longer available. Reopen the action and choose again.'
+    );
   if (!flairs.some((flair) => flair.id === flairTemplateId))
-    throw Error('That post flair is no longer available. Reopen the action and choose again.');
+    throw Error(
+      'That post flair is no longer available. Reopen the action and choose again.'
+    );
   const post = await reddit.getPostById(targetId as `t3_${string}`);
   if (post.subredditName.toLowerCase() !== context.subredditName.toLowerCase())
     throw Error('This post belongs to another community.');
@@ -424,7 +455,9 @@ crew.post('/form/dashboardConfirm', async (c) => {
   if (cfg.revision !== flow.revision)
     throw Error('Settings changed. Reopen Check-In Crew and try again.');
   if (!who.admin && !cfg.series.some((series) => allowed(series, who)))
-    throw Error('Ask a moderator to add your Reddit account as a series maintainer.');
+    throw Error(
+      'Ask a moderator to add your Reddit account as a series maintainer.'
+    );
   const existing = await redis.get(DASHBOARD_KEY);
   if (existing) {
     try {
@@ -463,22 +496,36 @@ crew.post('/form/bmiUnits', async (c) => {
   const flow = await session(v, who, 'bmiUnits');
   const heightUnit = choice(v, 'heightUnit') as 'cm' | 'ft';
   const weightUnit = choice(v, 'weightUnit') as 'kg' | 'lb' | 'st';
-  if (!['cm', 'ft'].includes(heightUnit) || !['kg', 'lb', 'st'].includes(weightUnit))
+  if (
+    !['cm', 'ft'].includes(heightUnit) ||
+    !['kg', 'lb', 'st'].includes(weightUnit)
+  )
     throw new Error('Choose valid height and weight units.');
   const hints = findPostBmiHints(await targetText(flow.series));
   const height = suggestedHeight(hints, heightUnit);
   const weight = suggestedWeight(hints, weightUnit);
   const fields: FormField[] = [];
-  if (heightUnit === 'cm') fields.push(measurementField('heightCm', 'Height (cm)', Number(height.cm)));
+  if (heightUnit === 'cm')
+    fields.push(measurementField('heightCm', 'Height (cm)', Number(height.cm)));
   else {
-    fields.push(measurementField('heightFeet', 'Height — feet', Number(height.feet)));
-    fields.push(measurementField('heightInches', 'Height — inches', Number(height.inches)));
+    fields.push(
+      measurementField('heightFeet', 'Height — feet', Number(height.feet))
+    );
+    fields.push(
+      measurementField('heightInches', 'Height — inches', Number(height.inches))
+    );
   }
-  if (weightUnit === 'kg') fields.push(measurementField('weightKg', 'Weight (kg)', Number(weight.kg)));
-  else if (weightUnit === 'lb') fields.push(measurementField('weightLb', 'Weight (lb)', Number(weight.lb)));
+  if (weightUnit === 'kg')
+    fields.push(measurementField('weightKg', 'Weight (kg)', Number(weight.kg)));
+  else if (weightUnit === 'lb')
+    fields.push(measurementField('weightLb', 'Weight (lb)', Number(weight.lb)));
   else {
-    fields.push(measurementField('weightStone', 'Weight — stone', Number(weight.stone)));
-    fields.push(measurementField('weightPounds', 'Weight — pounds', Number(weight.pounds)));
+    fields.push(
+      measurementField('weightStone', 'Weight — stone', Number(weight.stone))
+    );
+    fields.push(
+      measurementField('weightPounds', 'Weight — pounds', Number(weight.pounds))
+    );
   }
   return c.json(
     await form(
@@ -490,7 +537,7 @@ crew.post('/form/bmiUnits', async (c) => {
       fields,
       hints.teen
         ? 'Enter adult values manually. This calculator is not suitable for assessing teenagers.'
-      : 'Review any suggested values carefully. They were inferred from post text and may be wrong.',
+        : 'Review any suggested values carefully. They were inferred from post text and may be wrong.',
       undefined,
       'Calculate BMI',
       'Change units',
@@ -521,7 +568,9 @@ crew.post('/form/bmiInputs', async (c) => {
           : NaN;
   const bmi = bmiFromPostValues(heightCm, weightKg);
   if (bmi === undefined)
-    throw new Error('Check the measurements. Enter values within the supported adult ranges.');
+    throw new Error(
+      'Check the measurements. Enter values within the supported adult ranges.'
+    );
   const rawBmi = rawBmiFromPostValues(heightCm, weightKg);
   const roundingNote =
     rawBmi !== undefined && rawBmi < 18.5 && bmi >= 18.5

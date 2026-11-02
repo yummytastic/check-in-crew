@@ -17,6 +17,8 @@ const publicView = createPublicView(publicRoot, {
   openExpanded: (event) => {
     if (getWebViewMode() === 'expanded') return false;
     expandedSurface = 'tool';
+    // @ts-expect-error -- entry is deliberately omitted so this web view expands
+    // in place and the calculator keeps its state (passing an entry reloads it).
     requestExpandedMode(event);
     window.setTimeout(syncViewMode, 250);
     return true;
@@ -134,7 +136,9 @@ function syncCreateFields() {
     'create-signup': !simple,
     'create-roundup': !simple,
   })) {
-    const control = document.getElementById(id);
+    const control = /** @type {HTMLInputElement} */ (
+      document.getElementById(id)
+    );
     control.closest('label').hidden = !show;
     control.disabled = !show;
   }
@@ -142,20 +146,6 @@ function syncCreateFields() {
     ? 'Post highlighting'
     : 'Daily check-in';
 }
-const weekdays = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-];
-const stickyLabels = {
-  none: 'Not stickied',
-  slot1: 'Sticky slot 1',
-  slot2: 'Sticky slot 2',
-};
 function titleShortcodes(series) {
   return series.seriesType === 'simple'
     ? [
@@ -283,7 +273,7 @@ function syncEditors(root = document) {
 }
 for (const event of ['input', 'change'])
   document.addEventListener(event, (e) => {
-    if (e.target.closest('[data-edit-group]')) {
+    if (/** @type {Element} */ (e.target).closest('[data-edit-group]')) {
       markDirty(e.target);
       syncEditors();
     }
@@ -313,11 +303,12 @@ function syncViewMode() {
       expandedSurface = 'home';
       publicView.showHome();
     }
-    load({ preserveDrafts: true });
+    void load({ preserveDrafts: true });
   }
 }
 window.addEventListener('focus', syncViewMode);
 document.addEventListener('visibilitychange', syncViewMode);
+/** @param {{ preserveDrafts?: boolean, savedGroup?: string }} [options] */
 async function load({ preserveDrafts = false, savedGroup } = {}) {
   const request = ++dashboardRequest;
   authorised = false;
@@ -840,19 +831,63 @@ async function openDeleteDialog(seriesId, publicationKey) {
   });
   dialog.showModal();
 }
+// Comment totals fetched on request, kept in memory for this page only.
+const commentCounts = {};
+const commentCountText = (item) =>
+  item.publicationKey in commentCounts
+    ? `<br><span class="muted">${commentCounts[item.publicationKey].toLocaleString()} comment${commentCounts[item.publicationKey] === 1 ? '' : 's'}</span>`
+    : '';
+async function loadCommentCounts(button) {
+  const keys = JSON.parse(button.dataset.publicationKeys);
+  button.disabled = true;
+  button.textContent = 'Loading comment counts…';
+  try {
+    const response = await fetch('/api/dashboard/comment-counts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seriesId: button.dataset.commentCounts,
+        publicationKeys: keys,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw Error(data.error || 'Unable to load comment counts.');
+    Object.assign(commentCounts, data.counts);
+    for (const key of keys) {
+      const cell = button
+        .closest('details')
+        ?.querySelector(`[data-comments-for="${CSS.escape(key)}"]`);
+      if (cell && key in data.counts)
+        cell.innerHTML = commentCountText({ publicationKey: key });
+    }
+    button.textContent = 'Refresh comment counts';
+  } catch (error) {
+    button.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+function commentCountsButton(series) {
+  const keys = (series.historyDays ?? [])
+    .filter((item) => item.status === 'posted' && item.publicationKey)
+    .map((item) => item.publicationKey);
+  if (!keys.length) return '';
+  return `<p><button type="button" class="secondary" data-comment-counts="${esc(series.id)}" data-publication-keys="${esc(JSON.stringify(keys))}">Show comment counts</button></p>`;
+}
 function scheduleMarkup(series, historyMonth) {
   const rowLabels = series.seriesType === 'simple' ? { daily: 'Post' } : labels;
   const renderRows = (days) =>
     days
       .map(
         (item) =>
-          `<tr><td>${series.seriesType === 'simple' ? esc(item.date) + '<br>' + esc(item.time) + '<br><span class=muted>' + esc(item.timezone) + '</span>' : item.day}</td><td>${esc(rowLabels[item.kind])}${item.customised ? ' <span class="badge">Custom</span>' : ''}</td><td class="status-${esc(item.status)}">${statusText(item)}${publicationDetails(item)}</td><td>${item.url ? `<button class="link-button" data-open-post="${esc(item.url)}">Open post</button>` : '—'}</td><td>${deletePostButton(series.id, item)}${item.status === 'deleted' || item.status === 'deleting' ? '' : `<button class="secondary" data-preview="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">${item.canEdit ? 'Preview/edit' : 'Preview'}</button>`}${item.canPublish ? ` <button class="secondary" data-publish="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">Post now</button>` : ''}</td></tr>`
+          `<tr><td>${series.seriesType === 'simple' ? esc(item.date) + '<br>' + esc(item.time) + '<br><span class=muted>' + esc(item.timezone) + '</span>' : item.day}</td><td>${esc(rowLabels[item.kind])}${item.customised ? ' <span class="badge">Custom</span>' : ''}</td><td class="status-${esc(item.status)}">${statusText(item)}${publicationDetails(item)}<span data-comments-for="${esc(item.publicationKey)}">${commentCountText(item)}</span></td><td>${item.url ? `<button class="link-button" data-open-post="${esc(item.url)}">Open post</button>` : '—'}</td><td>${deletePostButton(series.id, item)}${item.status === 'deleted' || item.status === 'deleting' ? '' : `<button class="secondary" data-preview="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">${item.canEdit ? 'Preview/edit' : 'Preview'}</button>`}${item.canPublish ? ` <button class="secondary" data-publish="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">Post now</button>` : ''}</td></tr>`
       )
       .join('');
   const rows = renderRows(series.days);
   const history =
     series.seriesType === 'simple'
-      ? `<details><summary>History for ${esc(historyMonth)}</summary><div class="schedule"><table><thead><tr><th>Date</th><th>Post</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${renderRows(series.historyDays ?? []) || '<tr><td colspan="5">No past posts or publication attempts in this month.</td></tr>'}</tbody></table></div></details>`
+      ? `<details><summary>History for ${esc(historyMonth)}</summary>${commentCountsButton(series)}<div class="schedule"><table><thead><tr><th>Date</th><th>Post</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${renderRows(series.historyDays ?? []) || '<tr><td colspan="5">No past posts or publication attempts in this month.</td></tr>'}</tbody></table></div></details>`
       : '';
 
   return `<div class="schedule">${series.seriesType === 'simple' ? '<h3>Upcoming posts</h3><p class="muted">This window rolls forward as posts are published or their scheduled times pass, across month boundaries.</p>' : ''}<table><thead><tr><th>${series.seriesType === 'simple' ? 'Date' : 'Day'}</th><th>Thread</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No upcoming posts. Check the schedule start/end conditions.</td></tr>'}</tbody></table></div>${history}${draftMarkup(series)}`;
@@ -995,7 +1030,7 @@ function render() {
           ? `<div class="title-format"><label class="checkbox-label"><input type="checkbox" data-show-host-credit ${series.showHostCredit ? 'checked' : ''}> Include host credit in generated posts</label><p class="muted">Off by default for simple recurring posts. Maintainer access is separate from host credit.</p><div data-simple-host-credit ${series.showHostCredit ? '' : 'hidden'}>${defaultHostCredit}</div></div>`
           : `<div class="title-format">${defaultHostCredit}</div>`;
       const hostButton = 'People &amp; access';
-      const seriesSettings = `<div class="type-choice"><strong>${series.seriesType === 'simple' ? 'Simple recurring posts' : 'Monthly series'}</strong><p class="muted">${series.seriesType === 'simple' ? esc(series.scheduleSummary) : typeDescriptions.accountability}</p>${series.seriesType === 'simple' ? `<p class="muted">Next ${series.previewCount} posts shown</p><button type="button" class="secondary" data-change-schedule="${esc(series.id)}">${series.frequency === 'other' && !series.schedule ? 'Choose schedule' : 'Change schedule'}</button>` : `<label class="checkbox-label"><input type="checkbox" data-check-in-day-one ${series.checkInOnDayOne ? 'checked' : ''}> Also post a check-in on day 1?</label><label class="checkbox-label"><input type="checkbox" data-check-in-last-day ${series.checkInOnLastDay ? 'checked' : ''}> Also post a check-in on the last day of the month?</label>`}</div>`;
+      const seriesSettings = `<div class="type-choice"><strong>${series.seriesType === 'simple' ? 'Simple recurring posts' : 'Monthly series'}</strong><p class="muted">${series.seriesType === 'simple' ? esc(series.scheduleSummary) : typeDescriptions.accountability}</p>${series.seriesType === 'simple' ? `<p class="muted">Next ${series.previewCount} posts shown</p><button type="button" class="secondary" data-change-schedule="${esc(series.id)}">${series.frequency === 'other' && !series.schedule ? 'Choose schedule' : 'Change schedule'}</button>` : `<label class="checkbox-label"><input type="checkbox" data-check-in-day-one ${series.checkInOnDayOne ? 'checked' : ''}> Also post a check-in on day 1?</label><label class="checkbox-label"><input type="checkbox" data-check-in-last-day ${series.checkInOnLastDay ? 'checked' : ''}> Also post a check-in on the last day of the month?</label>`}<label>Lock posts after this many days (0 = never)<input type="number" inputmode="numeric" min="0" max="60" step="1" data-lock-after-days value="${esc(series.lockAfterDays ?? 0)}"></label><p class="muted">Stops new comments on older threads; existing comments stay visible. Checked hourly for recent posts. If a moderator unlocks a post on Reddit, it is not locked again.</p></div>`;
       const displayName = state.admin
         ? `<label>Display name<p class="muted">Shown in generated post titles and host credits.</p><input data-label value="${esc(series.label)}" maxlength="40"></label>`
         : '';
@@ -1154,7 +1189,7 @@ function render() {
   document.querySelectorAll('[data-reset-templates]').forEach((button) =>
     button.addEventListener('click', () => {
       if (window.confirm('Reset this series’ post bodies to the defaults?'))
-        send({
+        void send({
           action: 'templates',
           revision: state.revision,
           seriesId: button.dataset.resetTemplates,
@@ -1165,7 +1200,7 @@ function render() {
   document.querySelectorAll('[data-reset-titles]').forEach((button) =>
     button.addEventListener('click', () => {
       if (window.confirm('Reset this series’ title formats to the defaults?'))
-        send({
+        void send({
           action: 'templates',
           revision: state.revision,
           seriesId: button.dataset.resetTitles,
@@ -1176,7 +1211,7 @@ function render() {
   document.querySelectorAll('[data-reset-host-credit]').forEach((button) =>
     button.addEventListener('click', () => {
       if (window.confirm('Reset this series host credit to the default?'))
-        send({
+        void send({
           action: 'templates',
           revision: state.revision,
           seriesId: button.dataset.resetHostCredit,
@@ -1262,7 +1297,7 @@ function bindScheduleActions(root, revision) {
           'Resume permanently deleting the remaining posts and series data? Already deleted posts cannot be restored.'
         )
       )
-        send({
+        void send({
           action: 'retryDeletion',
           seriesId: button.dataset.retryDeletion,
           revision,
@@ -1278,7 +1313,7 @@ function bindScheduleActions(root, revision) {
             ' now from the Check-In Crew app account? This creates a real post and marks this topic as posted, so the scheduler will not post it again.'
         )
       )
-        send({
+        void send({
           action: 'publish',
           revision,
           seriesId: button.dataset.publish,
@@ -1289,6 +1324,11 @@ function bindScheduleActions(root, revision) {
         });
     })
   );
+  root
+    .querySelectorAll('[data-comment-counts]')
+    .forEach((button) =>
+      button.addEventListener('click', () => void loadCommentCounts(button))
+    );
   root
     .querySelectorAll('[data-open-post]')
     .forEach((button) =>
@@ -1330,6 +1370,9 @@ async function save(card, id) {
             .checked,
         }
       : {}),
+    lockAfterDays: Number(
+      card.querySelector('[data-lock-after-days]')?.value || 0
+    ),
     signupSticky: card.querySelector('[data-sticky="signup"]')?.value,
     dailySticky: card.querySelector('[data-sticky="daily"]')?.value,
     roundupSticky: card.querySelector('[data-sticky="roundup"]')?.value,
@@ -1655,7 +1698,7 @@ async function send(body) {
   }
 }
 document.querySelector('#refresh').addEventListener('click', () => {
-  if (mayDiscard()) load();
+  if (mayDiscard()) void load();
 });
 document.querySelector('#public-home').addEventListener('click', () => {
   if (!mayDiscard()) return;
@@ -1735,8 +1778,8 @@ document
   .forEach((button) => button.addEventListener('click', openTimezonePicker));
 syncCreateFields();
 syncScheduleFields();
-loadPublicOptions();
-load();
+void loadPublicOptions();
+void load();
 
 // Refresh schedules without replacing any unsaved template or host edits.
 let refreshingSchedule = false;

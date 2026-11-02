@@ -9,7 +9,15 @@ import {
 } from '../core/model.ts';
 
 const records = new Map<string, string>();
-const ctx = { userId: 't2_admin', subredditName: 'loseit_test' };
+const ctx = {
+  userId: 't2_admin',
+  subredditName: 'loseit_test',
+  subredditId: 't5_test',
+};
+const modmailAlerts: { subject: string; bodyMarkdown: string }[] = [];
+let failSubmit = false;
+let memberFlairText = '';
+let failReserve = false;
 let banned = false;
 let failIdentity = false;
 const missingAccounts = new Set<string>();
@@ -19,6 +27,7 @@ let sent = 0;
 const submitted: { title: string; text: string }[] = [];
 let beforeExec: (() => void) | undefined;
 const stickyPositions: number[] = [];
+let failSticky = false;
 let removed = 0;
 let deleted = 0;
 let failDelete = false;
@@ -26,9 +35,20 @@ let failDeleteId = '';
 let failEdit = false;
 const guidanceEvents: string[] = [];
 const removalReasons = [
-  { id: 'reason-teen', title: 'Teenage weight loss', message: 'Adult guidance only' },
+  {
+    id: 'reason-teen',
+    title: 'Teenage weight loss',
+    message: 'Adult guidance only',
+  },
 ];
 const postFlairs = [{ id: 'flair-teen', text: 'Teenage weight loss' }];
+const flairCalls: { postId: string; flairTemplateId: string }[] = [];
+let modLogEntries: {
+  id: string;
+  moderatorName: string;
+  details?: string;
+  target?: { id: string };
+}[] = [];
 let fakePost = {
   id: 't3_trigger',
   authorName: 'AutoModerator',
@@ -37,12 +57,26 @@ let fakePost = {
   body: '',
   removed: false,
   createdAt: new Date(),
+  flair: undefined as { templateId?: string } | undefined,
+  numberOfComments: 0,
+  locked: false,
+  lockCalls: 0,
+  async lock() {
+    this.lockCalls++;
+    this.locked = true;
+  },
   async remove() {
     removed++;
     this.removed = true;
     guidanceEvents.push('remove');
   },
-  async addRemovalNote({ reasonId, modNote }: { reasonId: string; modNote?: string }) {
+  async addRemovalNote({
+    reasonId,
+    modNote,
+  }: {
+    reasonId: string;
+    modNote?: string;
+  }) {
     if (!modNote) throw Error('mod_note is required');
     guidanceEvents.push('reason:' + reasonId);
     guidanceEvents.push('note:' + modNote);
@@ -79,6 +113,9 @@ const user = (id: string) => ({
   async getModPermissionsForSubreddit() {
     return id === 't2_admin' ? ['all'] : [];
   },
+  async getUserFlairBySubreddit() {
+    return { flairText: memberFlairText };
+  },
 });
 const fakeRedis = {
   async get(key: string) {
@@ -92,6 +129,12 @@ const fakeRedis = {
   async del(key: string) {
     records.delete(key);
   },
+  async incrBy(key: string, value: number) {
+    const next = Number(records.get(key) ?? 0) + value;
+    records.set(key, String(next));
+    return next;
+  },
+  async expire() {},
   async hSet(key: string, fields: Record<string, string>) {
     const hash = JSON.parse(records.get(key) ?? '{}') as Record<string, string>;
     records.set(key, JSON.stringify({ ...hash, ...fields }));
@@ -107,6 +150,7 @@ const fakeRedis = {
     return fields.length;
   },
   async watch(...keys: string[]) {
+    if (failReserve) throw Error('Redis temporarily unavailable');
     const before = keys.map((key) => records.get(key));
     const tasks: (() => Promise<unknown>)[] = [];
     return {
@@ -182,16 +226,39 @@ mock.module('@devvit/web/server', {
       async getPostFlairTemplates() {
         return postFlairs;
       },
-      async setPostFlair() {
+      async setPostFlair(options: { postId: string; flairTemplateId: string }) {
         guidanceEvents.push('flair');
+        flairCalls.push(options);
+        fakePost.flair = { templateId: options.flairTemplateId };
+      },
+      modMail: {
+        async createModNotification(message: {
+          subject: string;
+          bodyMarkdown: string;
+        }) {
+          modmailAlerts.push(message);
+          return 'conversation';
+        },
+      },
+      async getAppUser() {
+        return { username: 'check-in-crew' };
+      },
+      getModerationLog() {
+        return {
+          async all() {
+            return modLogEntries;
+          },
+        };
       },
       async submitPost(content: { title: string; text: string }) {
+        if (failSubmit) throw Error('Response lost after submission');
         sent++;
         submitted.push(content);
         return {
           id: 't3_post',
           url: 'https://www.reddit.com/r/loseit_test/comments/post',
           async sticky(position: number) {
+            if (failSticky) throw new Error('Sticky slots are full');
             stickyPositions.push(position);
           },
         };
@@ -221,6 +288,9 @@ const { processSeriesDeletions, deletionSettings } =
 const { processPersonalDataDeletion } = await import('../core/privacy.ts');
 const { checkTrackedAccounts } = await import('../core/account-cleanup.ts');
 const { api } = await import('./api.ts');
+const { triggers } = await import('./triggers.ts');
+const { recordProblem } = await import('../core/alerts.ts');
+const { lockOldThreads } = await import('../core/thread-lock.ts');
 const {
   publish,
   config,
@@ -291,6 +361,10 @@ function reset(): Config {
   submitted.length = 0;
   beforeExec = undefined;
   stickyPositions.length = 0;
+  failSticky = false;
+  failSubmit = false;
+  failReserve = false;
+  modmailAlerts.length = 0;
   guidanceEvents.length = 0;
   removed = 0;
   deleted = 0;
@@ -327,7 +401,10 @@ void test('post and comment calculator menu reviews adult values and suppresses 
   reset();
   installationSettings.set('enableCommunityCalculator', true);
   fakePost.body = 'I am 170 cm and weigh 75 kg.';
-  const menu = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const menu = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   assert.equal(menu.showForm?.name, 'bmiUnits');
   const inputs = await request('/form/bmiUnits', fields(menu));
   assert.equal(inputs.showForm?.name, 'bmiInputs');
@@ -336,22 +413,37 @@ void test('post and comment calculator menu reviews adult values and suppresses 
   assert.match(result.showForm?.form.description ?? '', /Estimated BMI: 26/);
 
   fakePost.body = '';
-  const low = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const low = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   const lowInputs = await request('/form/bmiUnits', fields(low));
   const lowResult = await request('/form/bmiInputs', {
     ...fields(lowInputs),
     heightCm: '170',
     weightKg: String(18.45 * 1.7 ** 2),
   });
-  assert.match(lowResult.showForm?.form.description ?? '', /Rounded up from 18\.450/);
+  assert.match(
+    lowResult.showForm?.form.description ?? '',
+    /Rounded up from 18\.450/
+  );
 
   fakePost.body = '16/f, 170 cm, 60 kg';
-  const teen = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
-  assert.match(teen.showForm?.form.fields.find((field) => field.name === 'session')?.name ?? '', /session/);
+  const teen = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
+  assert.match(
+    teen.showForm?.form.fields.find((field) => field.name === 'session')
+      ?.name ?? '',
+    /session/
+  );
   const teenInputs = await request('/form/bmiUnits', fields(teen));
   assert.equal(
     teenInputs.showForm?.form.fields
-      .filter((field) => /^(height|weight)(Cm|Feet|Inches|Kg|Lb|Stone|Pounds)$/.test(field.name))
+      .filter((field) =>
+        /^(height|weight)(Cm|Feet|Inches|Kg|Lb|Stone|Pounds)$/.test(field.name)
+      )
       .some((field) => field.defaultValue !== undefined),
     false
   );
@@ -361,23 +453,32 @@ void test('post calculator can be limited to moderators', async () => {
   installationSettings.set('enableCommunityCalculator', true);
   installationSettings.set('communityCalculatorModeratorsOnly', true);
   ctx.userId = 't2_member';
-  const denied = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const denied = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   assert.match(denied.showToast ?? '', /limited to moderators/);
 
   ctx.userId = 't2_admin';
-  const allowed = await request('/menu/bmi', { location: 'post', targetId: 't3_trigger' });
+  const allowed = await request('/menu/bmi', {
+    location: 'post',
+    targetId: 't3_trigger',
+  });
   assert.equal(allowed.showForm?.name, 'bmiUnits');
 });
 void test('teen guidance selects live reason and flair, then approves by default', async () => {
   reset();
-  await fakeRedis.set('crew:teen-guidance:v1', JSON.stringify({
-    enabled: true,
-    removalReasonId: 'reason-teen',
-    flairTemplateId: 'flair-teen',
-    flairText: '',
-    messageOverride: 'Teenage guidance message for testing.',
-    autoApprove: true,
-  }));
+  await fakeRedis.set(
+    'crew:teen-guidance:v1',
+    JSON.stringify({
+      enabled: true,
+      removalReasonId: 'reason-teen',
+      flairTemplateId: 'flair-teen',
+      flairText: '',
+      messageOverride: 'Teenage guidance message for testing.',
+      autoApprove: true,
+    })
+  );
   const menu = await request('/menu/teenGuidance', { targetId: 't3_trigger' });
   const response = menu;
   assert.match(response.showToast ?? '', /approved/);
@@ -392,96 +493,352 @@ void test('teen guidance selects live reason and flair, then approves by default
     'approve',
   ]);
 });
+void test('only uncertain or long-pending publications count as problems', () => {
+  const now = new Date('2026-11-02T12:00:00Z');
+  const record = (
+    status: 'pending' | 'posted' | 'uncertain',
+    minutes: number
+  ) => ({
+    status,
+    actor: 'scheduler',
+    at: new Date(now.getTime() - minutes * 60_000).toISOString(),
+  });
+  assert.equal(recordProblem(undefined, now), undefined);
+  assert.equal(recordProblem(record('posted', 60), now), undefined);
+  assert.equal(recordProblem(record('pending', 5), now), undefined);
+  assert.deepEqual(recordProblem(record('pending', 16), now), {
+    kind: 'stuck',
+  });
+  assert.deepEqual(recordProblem(record('uncertain', 0), now), {
+    kind: 'uncertain',
+  });
+});
+void test('old threads are locked once after the configured days', async () => {
+  const cfg = reset();
+  cfg.series[0]!.lockAfterDays = 2;
+  records.set('crew:config:v1', JSON.stringify(cfg));
+  const now = new Date('2026-11-02T12:00:00Z');
+  const id = cfg.series[0]!.id;
+  const publish = (key: string, postId: string, daysAgo: number) => {
+    const at = new Date(now.getTime() - daysAgo * 86_400_000).toISOString();
+    records.set(
+      key,
+      JSON.stringify({ status: 'posted', at, actor: 'scheduler', postId })
+    );
+    const month = at.slice(0, 7);
+    const hash = JSON.parse(records.get(`crew:history:${id}:${month}`) ?? '{}');
+    records.set(
+      `crew:history:${id}:${month}`,
+      JSON.stringify({ ...hash, [key]: '{}' })
+    );
+    const post = { ...fakePost, id: postId, locked: false, lockCalls: 0 };
+    fakePosts.set(postId, post);
+    return post;
+  };
+  const old = publish(`crew:post:${id}:2026-10-30:daily`, 't3_old', 3);
+  const lastMonth = publish(`crew:post:${id}:2026-10-05:daily`, 't3_oct', 28);
+  const recent = publish(`crew:post:${id}:2026-11-01:daily`, 't3_new', 1);
+
+  assert.equal(await lockOldThreads(now), 2);
+  assert.equal(old.lockCalls, 1);
+  assert.equal(lastMonth.lockCalls, 1);
+  assert.equal(recent.lockCalls, 0);
+  // At most one sweep an hour.
+  assert.equal(await lockOldThreads(now), 0);
+  // A thread a moderator unlocks is not locked again.
+  records.delete('crew:thread-lock:sweep');
+  old.locked = false;
+  assert.equal(await lockOldThreads(now), 0);
+  assert.equal(old.lockCalls, 1);
+  // Turning the setting off stops locking.
+  records.delete('crew:thread-lock:sweep');
+  cfg.series[0]!.lockAfterDays = 0;
+  records.set('crew:config:v1', JSON.stringify(cfg));
+  const later = new Date(now.getTime() + 2 * 86_400_000);
+  assert.equal(await lockOldThreads(later), 0);
+  assert.equal(recent.lockCalls, 0);
+  records.delete('crew:thread-lock:sweep');
+});
+void test('a failed lock is retried on later sweeps and only recorded once locked', async () => {
+  const cfg = reset();
+  cfg.series[0]!.lockAfterDays = 2;
+  records.set('crew:config:v1', JSON.stringify(cfg));
+  const id = cfg.series[0]!.id;
+  const start = new Date('2026-11-02T12:00:00Z');
+  const hour = 60 * 60_000;
+  const add = (
+    key: string,
+    postId: string,
+    failures: number,
+    locked = false
+  ) => {
+    const at = new Date(start.getTime() - 3 * 86_400_000).toISOString();
+    records.set(
+      key,
+      JSON.stringify({ status: 'posted', at, actor: 'scheduler', postId })
+    );
+    const month = at.slice(0, 7);
+    const hash = JSON.parse(records.get(`crew:history:${id}:${month}`) ?? '{}');
+    records.set(
+      `crew:history:${id}:${month}`,
+      JSON.stringify({ ...hash, [key]: '{}' })
+    );
+    const post = {
+      ...fakePost,
+      id: postId,
+      locked,
+      lockCalls: 0,
+      failuresLeft: failures,
+      async lock() {
+        this.lockCalls++;
+        if (this.failuresLeft-- > 0)
+          throw Error('Reddit temporarily unavailable');
+        this.locked = true;
+      },
+    };
+    fakePosts.set(postId, post);
+    return post;
+  };
+  const flaky = add(`crew:post:${id}:2026-10-30:daily`, 't3_flaky', 1);
+  const broken = add(`crew:post:${id}:2026-10-29:daily`, 't3_broken', 99);
+  const already = add(
+    `crew:post:${id}:2026-10-28:daily`,
+    't3_already',
+    0,
+    true
+  );
+  const sweep = async (hoursLater: number) => {
+    records.delete('crew:thread-lock:sweep');
+    return lockOldThreads(new Date(start.getTime() + hoursLater * hour));
+  };
+
+  // First sweep: the already-locked thread is confirmed without a lock call;
+  // the temporary failure is not recorded as done.
+  assert.equal(await sweep(0), 1);
+  assert.equal(already.lockCalls, 0);
+  assert.equal(flaky.locked, false);
+  assert.equal(
+    records.has(`crew:thread-lock:done:crew:post:${id}:2026-10-30:daily`),
+    false
+  );
+  // Next sweep retries and succeeds.
+  assert.equal(await sweep(1), 1);
+  assert.equal(flaky.locked, true);
+  assert.equal(flaky.lockCalls, 2);
+  // A thread that keeps failing is given up on after five attempts.
+  for (let i = 2; i < 8; i++) await sweep(i);
+  assert.equal(broken.lockCalls, 5);
+  assert.equal(broken.locked, false);
+  records.delete('crew:thread-lock:sweep');
+});
+void test('lock-after days are validated and saved per series', async () => {
+  reset();
+  const update = (lockAfterDays: unknown, revision: number) =>
+    dashboardAction({
+      action: 'update',
+      revision,
+      seriesId: 'eu',
+      lockAfterDays,
+    });
+  assert.equal((await update(61, 0)).status, 400);
+  assert.equal((await update(1.5, 0)).status, 400);
+  assert.equal((await update(7, 0)).status, 200);
+  assert.equal(
+    (await config()).series.find((s) => s.id === 'eu')?.lockAfterDays,
+    7
+  );
+  assert.equal((await update(0, 1)).status, 200);
+  assert.equal(
+    (await config()).series.find((s) => s.id === 'eu')?.lockAfterDays,
+    undefined
+  );
+});
+void test('moderator removal-reason flair is saved off by default and flairs via the mod log', async () => {
+  reset();
+  await fakeRedis.del('crew:teen-guidance:v1');
+  const save = (extra: Record<string, unknown>) =>
+    api.request('/dashboard/teen-guidance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        removalReasonId: 'reason-teen',
+        flairTemplateId: 'flair-teen',
+        messageOverride: '',
+        autoApprove: true,
+        ...extra,
+      }),
+    });
+  const modAction = (body: Record<string, unknown>) =>
+    triggers.request('/on-mod-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ModAction',
+        id: 'ModAction_live',
+        action: 'addremovalreason',
+        subreddit: { name: 'loseit_test' },
+        moderator: { name: 'Yummytastic' },
+        targetPost: { id: 't3_trigger' },
+        ...body,
+      }),
+    });
+  flairCalls.length = 0;
+  fakePost.flair = { templateId: 'flair-other' };
+  modLogEntries = [
+    {
+      id: 'ModAction_live',
+      moderatorName: 'Yummytastic',
+      details: '2: Teenage weight loss',
+      target: { id: 't3_trigger' },
+    },
+  ];
+
+  // An older dashboard that does not send the field leaves it off.
+  assert.equal((await save({})).status, 200);
+  assert.equal(
+    (
+      (await (await api.request('/dashboard/teen-guidance')).json()) as {
+        flairOnModeratorRemoval: boolean;
+      }
+    ).flairOnModeratorRemoval,
+    false
+  );
+  assert.equal((await modAction({})).status, 200);
+  assert.equal(flairCalls.length, 0);
+
+  assert.equal((await save({ flairOnModeratorRemoval: true })).status, 200);
+  // A newer action not yet in the log must not borrow the earlier
+  // teen-guidance entry for the same post (retries, then skips).
+  assert.equal((await modAction({ id: 'ModAction_newer' })).status, 200);
+  assert.equal(flairCalls.length, 0);
+  // A reason applied to a comment never flairs the containing post.
+  await modAction({ targetComment: { id: 't1_comment' } });
+  assert.equal(flairCalls.length, 0);
+  await modAction({});
+  await modAction({});
+  assert.deepEqual(flairCalls, [
+    {
+      postId: 't3_trigger',
+      flairTemplateId: 'flair-teen',
+      subredditName: 'loseit_test',
+    },
+  ]);
+  fakePost.flair = undefined;
+});
 void test('automatic account checks remove active access without historic deletion', async () => {
   reset();
   missingAccounts.add('t2_volunteer');
   fakePost.body = 'Thanks u/volunteer for hosting.';
   const start = new Date('2026-09-01T00:00:00Z');
   await checkTrackedAccounts(start);
-  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 1);
+  assert.equal(
+    JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer)
+      .checks,
+    1
+  );
   await checkTrackedAccounts(new Date('2026-09-01T12:00:00Z'));
-  assert.equal(JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer).checks, 2);
+  assert.equal(
+    JSON.parse(JSON.parse(records.get('crew:account-status:v1')!).volunteer)
+      .checks,
+    2
+  );
   await checkTrackedAccounts(new Date('2026-09-02T00:00:00Z'));
   assert.equal(
-    Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}')).length,
+    Object.keys(JSON.parse(records.get('crew:account-status:v1') ?? '{}'))
+      .length,
     0
   );
   assert.equal(records.has('crew:privacy-deletion'), false);
   const updated = JSON.parse(records.get('crew:config:v1')!) as Config;
-  assert.equal(updated.series[0]!.maintainers.some((member) => member.username === 'volunteer'), false);
+  assert.equal(
+    updated.series[0]!.maintainers.some(
+      (member) => member.username === 'volunteer'
+    ),
+    false
+  );
   assert.equal(fakePost.body, 'Thanks u/volunteer for hosting.');
 });
 void test('server form and automation integration', async (t) => {
-  await t.test('personal-data deletion removes identity records and redacts recorded host credits', async () => {
-    const cfg = reset();
-    const series = cfg.series[0]!;
-    series.hostRoster = ['volunteer'];
-    series.hosts['2026-09'] = ['volunteer'];
-    series.postOverrides = {
-      '2026-09-01:daily': { body: 'Thanks u/volunteer for hosting.' },
-    };
-    records.set('crew:config:v1', JSON.stringify(cfg));
-    await fakeRedis.hSet('crew:audit', {
-      '0': JSON.stringify({ by: 'volunteer', series: [series] }),
-    });
-    const key = 'crew:post:eu:2026-09-01:daily';
-    await fakeRedis.hSet('crew:history:eu:2026-09', {
-      [key]: JSON.stringify({ date: '2026-09-01' }),
-    });
-    records.set(
-      key,
-      JSON.stringify({
-        status: 'posted',
-        at: new Date().toISOString(),
-        actor: 'volunteer',
-        postId: 't3_privacy',
-      })
-    );
-    fakePost = {
-      ...fakePost,
-      id: 't3_privacy',
-      authorName: 'check-in-crew',
-      body: 'Hosted by u/volunteer and u/another.',
-    };
-    fakePosts.set('t3_privacy', fakePost);
-    const impact = await dashboardAction({
-      action: 'personalDataDeletionPreview',
-      revision: cfg.revision,
-      username: 'u/volunteer',
-    });
-    assert.equal(impact.status, 200);
-    assert.equal(impact.data.postCount, 1);
-    const response = await dashboardAction({
-      action: 'personalDataDeletion',
-      revision: cfg.revision,
-      username: 'u/volunteer',
-      confirmation: 'DELETE',
-    });
-    assert.equal(response.status, 200);
-    for (let tick = 0; tick < 20; tick++) await processPersonalDataDeletion();
-    failEdit = true;
-    await processPersonalDataDeletion();
-    assert.equal(
-      (JSON.parse(records.get('crew:privacy-deletion') ?? '{}') as { state?: string }).state,
-      'failed'
-    );
-    failEdit = false;
-    const retry = await dashboardAction({
-      action: 'retryPersonalDataDeletion',
-      revision: (await config()).revision,
-    });
-    assert.equal(retry.status, 200);
-    await processPersonalDataDeletion();
-    assert.equal(records.has('crew:privacy-deletion'), false);
-    const saved = await config();
-    assert.deepEqual(saved.series[0]!.maintainers, []);
-    assert.deepEqual(saved.series[0]!.hosts['2026-09'], []);
-    assert.deepEqual(saved.series[0]!.hostRoster, []);
-    assert.equal(saved.series[0]!.postOverrides?.['2026-09-01:daily']?.body, 'Thanks [deleted] for hosting.');
-    assert.equal((await publicationStore.read(key))?.actor, '[deleted]');
-    assert.equal(fakePost.body, 'Hosted by [deleted] and u/another.');
-    assert.equal(records.get('crew:audit')?.includes('volunteer'), false);
-  });
+  await t.test(
+    'personal-data deletion removes identity records and redacts recorded host credits',
+    async () => {
+      const cfg = reset();
+      const series = cfg.series[0]!;
+      series.hostRoster = ['volunteer'];
+      series.hosts['2026-09'] = ['volunteer'];
+      series.postOverrides = {
+        '2026-09-01:daily': { body: 'Thanks u/volunteer for hosting.' },
+      };
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      await fakeRedis.hSet('crew:audit', {
+        '0': JSON.stringify({ by: 'volunteer', series: [series] }),
+      });
+      const key = 'crew:post:eu:2026-09-01:daily';
+      await fakeRedis.hSet('crew:history:eu:2026-09', {
+        [key]: JSON.stringify({ date: '2026-09-01' }),
+      });
+      records.set(
+        key,
+        JSON.stringify({
+          status: 'posted',
+          at: new Date().toISOString(),
+          actor: 'volunteer',
+          postId: 't3_privacy',
+        })
+      );
+      fakePost = {
+        ...fakePost,
+        id: 't3_privacy',
+        authorName: 'check-in-crew',
+        body: 'Hosted by u/volunteer and u/another.',
+      };
+      fakePosts.set('t3_privacy', fakePost);
+      const impact = await dashboardAction({
+        action: 'personalDataDeletionPreview',
+        revision: cfg.revision,
+        username: 'u/volunteer',
+      });
+      assert.equal(impact.status, 200);
+      assert.equal(impact.data.postCount, 1);
+      const response = await dashboardAction({
+        action: 'personalDataDeletion',
+        revision: cfg.revision,
+        username: 'u/volunteer',
+        confirmation: 'DELETE',
+      });
+      assert.equal(response.status, 200);
+      for (let tick = 0; tick < 20; tick++) await processPersonalDataDeletion();
+      failEdit = true;
+      await processPersonalDataDeletion();
+      assert.equal(
+        (
+          JSON.parse(records.get('crew:privacy-deletion') ?? '{}') as {
+            state?: string;
+          }
+        ).state,
+        'failed'
+      );
+      failEdit = false;
+      const retry = await dashboardAction({
+        action: 'retryPersonalDataDeletion',
+        revision: (await config()).revision,
+      });
+      assert.equal(retry.status, 200);
+      await processPersonalDataDeletion();
+      assert.equal(records.has('crew:privacy-deletion'), false);
+      const saved = await config();
+      assert.deepEqual(saved.series[0]!.maintainers, []);
+      assert.deepEqual(saved.series[0]!.hosts['2026-09'], []);
+      assert.deepEqual(saved.series[0]!.hostRoster, []);
+      assert.equal(
+        saved.series[0]!.postOverrides?.['2026-09-01:daily']?.body,
+        'Thanks [deleted] for hosting.'
+      );
+      assert.equal((await publicationStore.read(key))?.actor, '[deleted]');
+      assert.equal(fakePost.body, 'Hosted by [deleted] and u/another.');
+      assert.equal(records.get('crew:audit')?.includes('volunteer'), false);
+    }
+  );
   await t.test(
     'people panel saves independent roles and host order, preserving historic selections',
     async () => {
@@ -585,6 +942,32 @@ void test('server form and automation integration', async (t) => {
     }
   );
   await t.test(
+    'calculator unit hints return unit choices only, never flair text',
+    async () => {
+      reset();
+      const units = async () =>
+        (await (await api.request('/calculator-units')).json()) as Record<
+          string,
+          string
+        >;
+      memberFlairText = '34F | 5\'6" | SW:210lb CW:180lb';
+      installationSettings.set('enableCommunityCalculator', true);
+      ctx.userId = 't2_member';
+      assert.deepEqual(await units(), { weight: 'lb', height: 'ft' });
+      assert.doesNotMatch(JSON.stringify(await units()), /210|180|34F/);
+      memberFlairText = 'Slow and steady';
+      assert.deepEqual(await units(), {});
+      memberFlairText = '72kg';
+      ctx.userId = '';
+      assert.deepEqual(await units(), {});
+      ctx.userId = 't2_member';
+      installationSettings.set('enableCommunityCalculator', false);
+      assert.deepEqual(await units(), {});
+      memberFlairText = '';
+      ctx.userId = 't2_admin';
+    }
+  );
+  await t.test(
     'public options and access checks reveal no management data or account names',
     async () => {
       reset();
@@ -615,8 +998,14 @@ void test('server form and automation integration', async (t) => {
           "{subreddit_link}'s community tools and volunteer dashboard. You have access to the dashboard; use the button at the bottom of the page to open it. If you need to contact the moderators, please {modmail_link}.",
         moderator: false,
       });
-      installationSettings.set('publicWelcomeMessage', 'Welcome to {subreddit_link}; {modmail_link}.');
-      installationSettings.set('authorisedWelcomeMessage', 'Dashboard access for {subreddit}.');
+      installationSettings.set(
+        'publicWelcomeMessage',
+        'Welcome to {subreddit_link}; {modmail_link}.'
+      );
+      installationSettings.set(
+        'authorisedWelcomeMessage',
+        'Dashboard access for {subreddit}.'
+      );
       assert.deepEqual((await read('/public')).data, {
         calculatorEnabled: true,
         flairEnabled: true,
@@ -727,12 +1116,12 @@ void test('server form and automation integration', async (t) => {
       });
       assert.equal(preview.data.title, 'A published title');
       installationSettings.set('allowMaintainerDeletion', false);
-  installationSettings.set('enableTeenGuidanceAction', true);
-  installationSettings.set(
-    'teenGuidanceMessage',
-    'Teenage guidance message for testing.'
-  );
-  installationSettings.set('teenGuidanceAutoApprove', true);
+      installationSettings.set('enableTeenGuidanceAction', true);
+      installationSettings.set(
+        'teenGuidanceMessage',
+        'Teenage guidance message for testing.'
+      );
+      installationSettings.set('teenGuidanceAutoApprove', true);
       assert.equal((await requestDelete()).status, 400);
       ctx.userId = 't2_admin';
       assert.equal((await requestDelete()).status, 200);
@@ -1158,8 +1547,14 @@ void test('server form and automation integration', async (t) => {
       );
       const dashboardPrompt = await request('/menu/dashboard');
       assert.equal(dashboardPrompt.showForm?.name, 'dashboardConfirm');
-      assert.match(dashboardPrompt.showForm?.form.description ?? '', /locked permanent post/);
-      const dashboard = await request('/form/dashboardConfirm', fields(dashboardPrompt));
+      assert.match(
+        dashboardPrompt.showForm?.form.description ?? '',
+        /locked permanent post/
+      );
+      const dashboard = await request(
+        '/form/dashboardConfirm',
+        fields(dashboardPrompt)
+      );
       assert.match(dashboard.navigateTo ?? '', /dashboard/);
       ctx.userId = 't2_volunteer';
       const pause = await openAction('emergencyPause');
@@ -1303,15 +1698,18 @@ void test('server form and automation integration', async (t) => {
       assert.equal(records.get(keys[0]!), unresolved);
     }
   );
-  await t.test('volunteers cannot create a missing dashboard post', async () => {
-    reset();
-    ctx.userId = 't2_volunteer';
-    const response = await request('/menu/dashboard');
-    assert.match(
-      response.showToast ?? '',
-      /dashboard isn't available.*moderator needs to create it/i
-    );
-  });
+  await t.test(
+    'volunteers cannot create a missing dashboard post',
+    async () => {
+      reset();
+      ctx.userId = 't2_volunteer';
+      const response = await request('/menu/dashboard');
+      assert.match(
+        response.showToast ?? '',
+        /dashboard isn't available.*moderator needs to create it/i
+      );
+    }
+  );
   await t.test(
     'series limit is configurable and enforced by both creation interfaces',
     async () => {
@@ -2147,6 +2545,40 @@ void test('server form and automation integration', async (t) => {
     }
   );
   await t.test(
+    'a pinning failure still records the published post',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.sticky = {
+        signup: 'slot1',
+        daily: 'slot2',
+        roundup: 'slot2',
+      };
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      failSticky = true;
+      const dateForm = await openAction('preview');
+      const review = await request('/form/preview', fields(dateForm));
+      assert.ok(
+        (await request('/form/publish', { ...fields(review), confirmed: true }))
+          .navigateTo
+      );
+      assert.equal(sent, 1);
+      const saved = [...records.entries()]
+        .filter(([key]) => key.startsWith('crew:post:'))
+        .map(
+          ([, value]) =>
+            JSON.parse(String(value)) as { status: string; url?: string }
+        );
+      assert.ok(
+        saved.some(
+          (record) =>
+            record.status === 'posted' &&
+            record.url === 'https://www.reddit.com/r/loseit_test/comments/post'
+        ),
+        JSON.stringify(saved)
+      );
+    }
+  );
+  await t.test(
     'changed host credits invalidate a previous publication preview',
     async () => {
       const cfg = reset();
@@ -2162,6 +2594,110 @@ void test('server form and automation integration', async (t) => {
       assert.equal(sent, 0);
     }
   );
+  await t.test(
+    'comment counts are returned only for published posts in an accessible series',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.enabled = true;
+      cfg.series[0]!.time = '00:00';
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      const posted = [...records.keys()].filter(
+        (key) =>
+          key.startsWith(`crew:post:${cfg.series[0]!.id}:`) &&
+          JSON.parse(records.get(key)!).status === 'posted'
+      );
+      assert.ok(posted.length >= 1);
+      fakePost.numberOfComments = 42;
+      const counts = async (body: Record<string, unknown>) => {
+        const res = await api.request('/dashboard/comment-counts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { status: res.status, data: await res.json() };
+      };
+      const ok = await counts({
+        seriesId: cfg.series[0]!.id,
+        publicationKeys: [
+          ...posted,
+          'crew:post:other-series:2026-11-01:daily',
+          'crew:config:v1',
+        ],
+      });
+      assert.equal(ok.status, 200);
+      assert.deepEqual(
+        ok.data.counts,
+        Object.fromEntries(posted.map((key) => [key, 42]))
+      );
+      ctx.userId = 't2_stranger';
+      const denied = await counts({
+        seriesId: cfg.series[0]!.id,
+        publicationKeys: posted,
+      });
+      assert.equal(denied.status, 403);
+      ctx.userId = 't2_admin';
+      fakePost.numberOfComments = 0;
+    }
+  );
+  await t.test(
+    'an unconfirmed scheduled post alerts moderators once',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.enabled = true;
+      cfg.series[0]!.time = '00:00';
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      failSubmit = true;
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      const due = modmailAlerts.length;
+      assert.ok(due >= 1);
+      assert.match(modmailAlerts[0]!.subject, /may be missing/);
+      assert.match(modmailAlerts[0]!.bodyMarkdown, /did not confirm/);
+      assert.match(modmailAlerts[0]!.bodyMarkdown, /EU/);
+      // Uncertain posts are never retried, and the alert is not repeated.
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.equal(modmailAlerts.length, due);
+      assert.equal(sent, 0);
+    }
+  );
+  await t.test(
+    'repeated scheduler failures alert once; a single failure does not',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.enabled = true;
+      cfg.series[0]!.time = '00:00';
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      failReserve = true;
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.equal(modmailAlerts.length, 0);
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      const due = modmailAlerts.length;
+      assert.ok(due >= 1);
+      assert.match(
+        modmailAlerts[0]!.bodyMarkdown,
+        /failed on repeated attempts/
+      );
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.equal(modmailAlerts.length, due);
+      // Recovery publishes normally without further alerts.
+      failReserve = false;
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      assert.ok(sent >= 1);
+      assert.equal(modmailAlerts.length, due);
+    }
+  );
+  await t.test('failure alerts can be turned off', async () => {
+    const cfg = reset();
+    cfg.series[0]!.enabled = true;
+    cfg.series[0]!.time = '00:00';
+    records.set('crew:config:v1', JSON.stringify(cfg));
+    installationSettings.set('alertFailedPosts', false);
+    failSubmit = true;
+    await automation.request('/scheduler/tick', { method: 'POST' });
+    await automation.request('/scheduler/tick', { method: 'POST' });
+    assert.equal(modmailAlerts.length, 0);
+    installationSettings.delete('alertFailedPosts');
+  });
   await t.test(
     'paused scheduler never publishes; repeated scheduled runs do not duplicate',
     async () => {

@@ -8,9 +8,21 @@ import {
   kgToStone,
   imperialToCm,
   cmToImperial,
-} from './src/tools/calculator.ts';
+  parseMeasurement,
+  compareMaintenance,
+} from '../tools/calculator.ts';
 
 // Measurements live only in this closure. Never pass them to access checks or links.
+/**
+ * @param {HTMLElement} root
+ * @param {{
+ *   checkAccess: () => unknown,
+ *   openDashboard: (event: MouseEvent) => unknown,
+ *   openExpanded?: (event: MouseEvent) => boolean,
+ *   openFlair?: (event: MouseEvent) => boolean,
+ *   navigate: (url: string) => unknown,
+ * }} options
+ */
 export function createPublicView(
   root,
   {
@@ -43,6 +55,9 @@ export function createPublicView(
   let helpTab = 'basics';
   let heightUnits = 'cm';
   let weightUnits = 'kg';
+  // Unit preferences inferred from the member's flair (unit choices only).
+  let unitHintsRequested = false;
+  let unitsChosen = false;
   let heightCm = NaN,
     weightKg = NaN;
   const values = {
@@ -55,8 +70,12 @@ export function createPublicView(
     weight: '',
     stone: '',
     pounds: '',
+    bodyFat: '',
   };
   let result;
+  // Inputs behind the current result, and the optional comparison weight.
+  let resultInput;
+  const comparison = { weight: '', stone: '', pounds: '', outcome: '' };
   const esc = (value) =>
     String(value ?? '').replace(
       /[&<>"']/g,
@@ -69,7 +88,7 @@ export function createPublicView(
           "'": '&#39;',
         })[c]
     );
-  const num = (value) => (value.trim() === '' ? NaN : Number(value));
+  const num = (value) => parseMeasurement(value);
   const textNumber = (value) =>
     Number.isFinite(value) ? String(Math.round(value * 10000) / 10000) : '';
   const button = (id, label, secondary = false) =>
@@ -101,6 +120,10 @@ export function createPublicView(
   }
   const sources = [
     ['Mifflin–St Jeor study', 'https://pubmed.ncbi.nlm.nih.gov/2305711/'],
+    [
+      'Equation comparison incl. Katch–McArdle',
+      'https://pmc.ncbi.nlm.nih.gov/articles/PMC7912292/',
+    ],
     [
       'Activity factors (Q&A, p. 1)',
       'https://healthcare.orgain.com/media/webinar/qa/MakingGoodAthletesGreatQ_A.pdf',
@@ -137,6 +160,19 @@ export function createPublicView(
   async function saveModeratorTools() {
     const screen = root.querySelector('[data-public-screen="moderator-tools"]');
     if (!screen) return;
+    // Read the form before render() replaces it.
+    const values = {
+      removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
+      flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
+      messageOverride: screen.querySelector('#moderator-guidance-custom')
+        .checked
+        ? screen.querySelector('#moderator-guidance-message').value
+        : '',
+      autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
+      flairOnModeratorRemoval: screen.querySelector(
+        '#moderator-guidance-auto-flair'
+      ).checked,
+    };
     moderatorToolsStatus = 'Saving…';
     moderatorToolsError = '';
     render();
@@ -144,27 +180,12 @@ export function createPublicView(
       const response = await fetch('/api/dashboard/teen-guidance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
-          flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
-          messageOverride: screen.querySelector('#moderator-guidance-custom').checked
-            ? screen.querySelector('#moderator-guidance-message').value
-            : '',
-          autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
-        }),
+        body: JSON.stringify(values),
       });
       const data = await response.json();
       if (!response.ok)
         throw Error(data.error || 'Unable to save moderator tools.');
-      moderatorToolsData = {
-        ...moderatorToolsData,
-        removalReasonId: screen.querySelector('#moderator-guidance-reason').value,
-        flairTemplateId: screen.querySelector('#moderator-guidance-flair').value,
-        messageOverride: screen.querySelector('#moderator-guidance-custom').checked
-          ? screen.querySelector('#moderator-guidance-message').value
-          : '',
-        autoApprove: screen.querySelector('#moderator-guidance-approve').checked,
-      };
+      moderatorToolsData = { ...moderatorToolsData, ...values };
       moderatorToolsStatus = 'Saved.';
     } catch (error) {
       moderatorToolsError = error.message;
@@ -234,7 +255,7 @@ export function createPublicView(
         : moderatorToolsError
           ? `<p class="notice error" role="alert">${esc(moderatorToolsError)}</p>`
           : data
-            ? `<section class="public-tools"><h2>Teenage weight-loss guidance</h2><p class="public-muted">Configure the moderator-only one-click post action. It adds the selected Reddit removal note, posts and locks the guidance comment, applies the selected subreddit flair, and can approve the post.</p><label>Removal reason<select id="moderator-guidance-reason"><option value="">Choose a removal reason</option>${data.reasons.map((item) => `<option value="${esc(item.id)}" ${item.id === data.removalReasonId ? 'selected' : ''}>${esc(item.title)}</option>`).join('')}</select></label><label>Post flair<select id="moderator-guidance-flair"><option value="">Choose a post flair</option>${data.flairs.map((item) => `<option value="${esc(item.id)}" ${item.id === data.flairTemplateId ? 'selected' : ''}>${esc(item.text || item.id)}</option>`).join('')}</select></label><label class="checkbox-label"><input id="moderator-guidance-custom" type="checkbox" ${data.messageOverride ? 'checked' : ''}> Use a custom guidance comment</label><label>Guidance comment<textarea id="moderator-guidance-message" maxlength="10000" rows="7" ${data.messageOverride ? '' : 'readonly'}>${esc(data.messageOverride || data.reasons.find((item) => item.id === data.removalReasonId)?.message || '')}</textarea></label><label class="checkbox-label"><input id="moderator-guidance-approve" type="checkbox" ${data.autoApprove ? 'checked' : ''}> Approve the post after guidance is added</label>${moderatorToolsStatus ? `<p class="public-muted" role="status">${esc(moderatorToolsStatus)}</p>` : ''}</section>`
+            ? `<section class="public-tools"><h2>Teenage weight-loss guidance</h2><p class="public-muted">Configure the moderator-only one-click post action. It adds the selected Reddit removal note, posts and locks the guidance comment, applies the selected subreddit flair, and can approve the post.</p><label>Removal reason<select id="moderator-guidance-reason"><option value="">Choose a removal reason</option>${data.reasons.map((item) => `<option value="${esc(item.id)}" ${item.id === data.removalReasonId ? 'selected' : ''}>${esc(item.title)}</option>`).join('')}</select></label><label>Post flair<select id="moderator-guidance-flair"><option value="">Choose a post flair</option>${data.flairs.map((item) => `<option value="${esc(item.id)}" ${item.id === data.flairTemplateId ? 'selected' : ''}>${esc(item.text || item.id)}</option>`).join('')}</select></label><label class="checkbox-label"><input id="moderator-guidance-custom" type="checkbox" ${data.messageOverride ? 'checked' : ''}> Use a custom guidance comment</label><label>Guidance comment<textarea id="moderator-guidance-message" maxlength="10000" rows="7" ${data.messageOverride ? '' : 'readonly'}>${esc(data.messageOverride || data.reasons.find((item) => item.id === data.removalReasonId)?.message || '')}</textarea></label><label class="checkbox-label"><input id="moderator-guidance-approve" type="checkbox" ${data.autoApprove ? 'checked' : ''}> Approve the post after guidance is added</label><label class="checkbox-label"><input id="moderator-guidance-auto-flair" type="checkbox" ${data.flairOnModeratorRemoval ? 'checked' : ''}> Add post flair when another moderator removes a post with this reason</label><p class="public-muted">Keeps the usual Reddit workflow: when another moderator removes a post and selects the removal reason above (for example, sending it as the ModTeam account), the post flair above is added automatically. This may replace the post's existing flair. It only sets flair: it never approves, comments or locks. Removal reasons applied to comments are ignored.</p>${moderatorToolsStatus ? `<p class="public-muted" role="status">${esc(moderatorToolsStatus)}</p>` : ''}</section>`
             : '<p class="notice error">Moderator tools are unavailable.</p>';
       footer =
         (!moderatorToolsLoading && data && !moderatorToolsError
@@ -244,18 +265,25 @@ export function createPublicView(
             : '') + button('moderator-tools-back', 'Back', true);
     } else if (view === 'about') {
       heading = 'About Check-In Crew';
-      content = '<p>Check-In Crew helps moderators and volunteer hosts run scheduled community check-ins and recurring posts.</p><p>You can use the available calculator and flair tools. If you have questions or need management access, contact the community moderators through modmail.</p>';
+      content =
+        '<p>Check-In Crew helps moderators and volunteer hosts run scheduled community check-ins and recurring posts.</p><p>You can use the available calculator and flair tools. If you have questions or need management access, contact the community moderators through modmail.</p>';
       footer = button('about-back', 'Back', true);
     } else if (view === 'inputs') {
-      heading = calculatorMode === 'bmi' ? 'BMI calculator' : 'Calorie needs calculator';
-      const calorieFields = calculatorMode === 'bmi' ? '' : `${input('age', 'Age (18+)', 'numeric')}${select(
-        'sex',
-        'Sex used by formula',
-        [
-          ['female', 'Female'],
-          ['male', 'Male'],
-        ]
-      )}`;
+      heading =
+        calculatorMode === 'bmi'
+          ? 'BMI calculator'
+          : 'Calorie needs calculator';
+      const calorieFields =
+        calculatorMode === 'bmi'
+          ? ''
+          : `${input('age', 'Age (18+)', 'numeric')}${select(
+              'sex',
+              'Sex used by formula',
+              [
+                ['female', 'Female'],
+                ['male', 'Male'],
+              ]
+            )}`;
       content = `<form id="calculator-form" novalidate autocomplete="off"><div class="calculator-grid">${calorieFields}<div class="measurement-group"><label><span class="unit-label">Height units</span><select id="calc-height-units"><option value="cm"${heightUnits === 'cm' ? ' selected' : ''}>Centimetres</option><option value="ft"${heightUnits === 'ft' ? ' selected' : ''}>Feet &amp; inches</option></select></label>${heightUnits === 'cm' ? input('height', 'Height (cm)') : `<div class="split-measurement">${input('feet', 'Feet', 'numeric')}${input('inches', 'Inches')}</div>`}</div><div class="measurement-group"><label><span class="unit-label">Weight units</span><select id="calc-weight-units">${[
         ['kg', 'Kilograms'],
         ['lb', 'Pounds'],
@@ -267,11 +295,15 @@ export function createPublicView(
         )
         .join(
           ''
-      )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div>${calculatorMode === 'bmi' ? '' : `<div class="activity-field">${select(
-        'activity',
-        'Activity level',
-        activityLevels.map((level) => [level.id, level.label])
-      )}</div>`}<p id="activity-description" class="public-muted">${calculatorMode === 'bmi' ? 'BMI is an adult screening measure, not a diagnosis.' : esc(activityDescription())}</p></div></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
+        )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div>${
+        calculatorMode === 'bmi'
+          ? ''
+          : `<div class="activity-field">${input('bodyFat', 'Body fat % (optional)')}<p class="public-muted">Leave blank unless you know it. If entered, the Katch–McArdle formula is used instead. Studies are mixed, and extra detail doesn’t necessarily make the estimate more accurate.</p></div><div class="activity-field">${select(
+              'activity',
+              'Activity level',
+              activityLevels.map((level) => [level.id, level.label])
+            )}</div>`
+      }<p id="activity-description" class="public-muted">${calculatorMode === 'bmi' ? 'BMI is an adult screening measure, not a diagnosis.' : esc(activityDescription())}</p></div></form><div class="calculator-help-row"><button type="button" class="link-button" id="calculation-help">About this calculation</button><span class="public-privacy" title="Details stay on this device and aren’t saved.">Details aren’t saved.</span></div>`;
       footer =
         '<button type="submit" form="calculator-form" id="calculator-submit">Calculate</button>' +
         button('calculator-back', 'Back', true) +
@@ -280,7 +312,10 @@ export function createPublicView(
           : button('calculator-access', 'About Check-In Crew', true));
     } else if (view === 'results') {
       heading = 'Your estimate';
-      content = calculatorMode === 'bmi' ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>` : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
+      content =
+        calculatorMode === 'bmi'
+          ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`
+          : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p>${result.formula === 'katch-mcardle' ? '<p class="public-muted">Estimated with the Katch–McArdle formula using your body-fat percentage.</p>' : ''}</section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p>${comparisonSection()}<button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
       footer =
         button('calculator-edit', 'Edit details') +
         button('calculator-home', 'Back to home', true);
@@ -292,7 +327,7 @@ export function createPublicView(
         activity:
           '<p>These are rough guides to total daily movement, work and purposeful exercise, not a score for workout frequency alone. A short session does not cancel out a mostly seated day.</p><p>Very active and extremely active are for sustained high workloads, including demanding athletic lifestyles. Select them only when your usual routine fits; they are not a shortcut to a higher calorie estimate.</p><p>Every result estimates maintenance, not a weight-loss target. Being in a calorie deficit does not determine your activity level.</p>',
         formula:
-          '<p><strong>Mifflin–St Jeor:</strong> 10 × kg + 6.25 × cm − 5 × age, then +5 (male) or −161 (female), estimates resting kcal/day. Multiply by activity for daily needs.</p><p><strong>Sex input:</strong> the study used female and male groups with different constants. This is a formula choice, not a gender label; it may not reflect your physiology or hormone treatment.</p>',
+          '<p><strong>Mifflin–St Jeor:</strong> 10 × kg + 6.25 × cm − 5 × age, then +5 (male) or −161 (female), estimates resting kcal/day. Multiply by activity for daily needs.</p><p><strong>Sex input:</strong> the study used female and male groups with different constants. This is a formula choice, not a gender label; it may not reflect your physiology or hormone treatment.</p><p><strong>Katch–McArdle (optional):</strong> if you enter a body-fat percentage, resting kcal/day is 370 + 21.6 × lean mass in kg (weight × (1 − body fat ÷ 100)), then multiplied by activity. It is offered because it is a common alternative in exercise and fitness settings. Studies comparing it with measured energy use are mixed: it suits some groups better and others worse, and it depends on an accurate body-fat figure, which is hard to measure. Extra detail doesn’t necessarily give a more accurate result.</p>',
         limits: `<p>For adults 18+. Not designed for pregnancy, breastfeeding or clinical nutrition. Body composition, health and age can affect accuracy; the original study included ages 19–78.</p><p>Measurements and results stay in memory on this device and disappear when the app reloads. Source links contain none of your details.</p><nav aria-label="Calculation sources">${sources.map(([label, url]) => `<button type="button" class="link-button" data-source="${url}">${label}</button>`).join('')}</nav>`,
       };
       content = `<nav class="help-tabs" aria-label="Help topics">${[
@@ -367,11 +402,13 @@ export function createPublicView(
         (item) => item.id === guidanceReason?.value
       )?.message ?? '';
     guidanceReason?.addEventListener('change', () => {
-      if (!guidanceCustom.checked) guidanceMessage.value = selectedReasonMessage();
+      if (!guidanceCustom.checked)
+        guidanceMessage.value = selectedReasonMessage();
     });
     guidanceCustom?.addEventListener('change', () => {
       guidanceMessage.readOnly = !guidanceCustom.checked;
-      if (!guidanceCustom.checked) guidanceMessage.value = selectedReasonMessage();
+      if (!guidanceCustom.checked)
+        guidanceMessage.value = selectedReasonMessage();
       else guidanceMessage.focus();
     });
     if (root.querySelector('#public-check-access'))
@@ -398,6 +435,7 @@ export function createPublicView(
       })
     );
     if (view === 'inputs') bindInputs();
+    if (view === 'results') bindComparison();
   }
   function heightPartsValid() {
     return (
@@ -431,7 +469,94 @@ export function createPublicView(
           ? num(values.height)
           : imperialToCm(num(values.feet), num(values.inches));
   }
+  function weightLabel(kg) {
+    if (weightUnits === 'kg') return `${textNumber(kg)} kg`;
+    if (weightUnits === 'lb') return `${textNumber(kgToPounds(kg))} lb`;
+    const { stone, pounds } = kgToStone(kg);
+    return `${stone} st ${textNumber(pounds)} lb`;
+  }
+  function comparisonSection() {
+    const field = (name, label, mode = 'decimal') =>
+      `<label>${label}<input id="compare-${name}" data-compare="${name}" value="${esc(comparison[name])}" inputmode="${mode}" type="text" autocomplete="off" spellcheck="false"></label>`;
+    const fields =
+      weightUnits === 'st'
+        ? `<div class="split-measurement">${field('stone', 'Stone', 'numeric')}${field('pounds', 'Pounds')}</div>`
+        : field('weight', `Weight (${weightUnits})`);
+    return `<section class="calculator-result calculator-compare"><h2>Compare at another weight</h2><p class="public-muted">See how estimated maintenance changes at a different weight, with your other details the same.</p><form id="compare-form" novalidate autocomplete="off">${fields}<button type="submit" class="secondary">Compare</button></form><p role="status" id="compare-outcome">${esc(comparison.outcome)}</p></section>`;
+  }
+  function bindComparison() {
+    const form = root.querySelector('#compare-form');
+    if (!form) return;
+    form.querySelectorAll('[data-compare]').forEach((el) =>
+      el.addEventListener('input', () => {
+        comparison[el.dataset.compare] = el.value;
+      })
+    );
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const otherKg =
+        weightUnits === 'kg'
+          ? num(comparison.weight)
+          : weightUnits === 'lb'
+            ? poundsToKg(num(comparison.weight))
+            : Number.isInteger(num(comparison.stone)) &&
+                num(comparison.pounds || '0') >= 0 &&
+                num(comparison.pounds || '0') < 14
+              ? stoneToKg(num(comparison.stone), num(comparison.pounds || '0'))
+              : NaN;
+      const compared = compareMaintenance(resultInput, otherKg);
+      if ('error' in compared) comparison.outcome = compared.error;
+      else {
+        const change = Math.abs(compared.difference).toLocaleString('en');
+        const direction =
+          compared.difference === 0
+            ? 'the same as now'
+            : `${change} kcal/day ${compared.difference < 0 ? 'lower' : 'higher'} than now`;
+        comparison.outcome = `At ${weightLabel(otherKg)}${resultInput.bodyFat === undefined ? '' : ' (assuming the same body-fat percentage)'}, estimated maintenance would be about ${compared.kcal.toLocaleString('en')} kcal/day: ${direction}. This is an estimate of maintenance at that weight, not a target.`;
+      }
+      root.querySelector('#compare-outcome').textContent = comparison.outcome;
+    });
+  }
+  async function loadUnitHints() {
+    if (unitHintsRequested) return;
+    unitHintsRequested = true;
+    let hints;
+    try {
+      const response = await fetch('/api/calculator-units');
+      if (!response.ok) return;
+      hints = await response.json();
+    } catch {
+      return;
+    }
+    const measurementsEmpty = [
+      'height',
+      'feet',
+      'inches',
+      'weight',
+      'stone',
+      'pounds',
+    ].every((name) => !String(values[name] ?? '').trim());
+    // Never switch units under entered values or while someone is typing.
+    if (
+      unitsChosen ||
+      !measurementsEmpty ||
+      (root.contains(document.activeElement) &&
+        document.activeElement.matches('input, select, textarea'))
+    )
+      return;
+    const nextHeight = ['cm', 'ft'].includes(hints.height)
+      ? hints.height
+      : heightUnits;
+    const nextWeight = ['kg', 'lb', 'st'].includes(hints.weight)
+      ? hints.weight
+      : weightUnits;
+    if (nextHeight === heightUnits && nextWeight === weightUnits) return;
+    heightUnits = nextHeight;
+    weightUnits = nextWeight;
+    if (view === 'inputs') render();
+  }
   function bindInputs() {
+    void loadUnitHints();
     root.querySelectorAll('[data-calc]').forEach((field) => {
       field.addEventListener('input', () => {
         values[field.dataset.calc] = field.value;
@@ -461,6 +586,7 @@ export function createPublicView(
           return;
         }
         heightUnits = event.target.value;
+        unitsChosen = true;
         if (heightUnits === 'cm') values.height = textNumber(heightCm);
         else {
           const converted = cmToImperial(heightCm);
@@ -491,6 +617,7 @@ export function createPublicView(
           return;
         }
         weightUnits = event.target.value;
+        unitsChosen = true;
         if (weightUnits === 'kg') values.weight = textNumber(weightKg);
         else if (weightUnits === 'lb')
           values.weight = textNumber(kgToPounds(weightKg));
@@ -509,13 +636,19 @@ export function createPublicView(
       .querySelector('#calculator-form')
       .addEventListener('submit', (event) => {
         event.preventDefault();
-        const computed = calculate({
+        const input = {
           age: calculatorMode === 'bmi' ? 18 : num(values.age),
           sex: calculatorMode === 'bmi' ? 'female' : values.sex,
           heightCm,
           weightKg,
           activity: calculatorMode === 'bmi' ? 'low' : values.activity,
-        });
+          // Blank means "not given"; anything typed must be valid.
+          bodyFat:
+            calculatorMode === 'bmi' || !values.bodyFat.trim()
+              ? undefined
+              : num(values.bodyFat),
+        };
+        const computed = calculate(input);
         const errors = Object.fromEntries(
           Object.entries(computed.errors).map(([name, error]) => [
             name === 'heightCm'
@@ -560,6 +693,8 @@ export function createPublicView(
           return;
         }
         result = computed;
+        resultInput = input;
+        comparison.outcome = '';
         go('results');
       });
   }
@@ -594,7 +729,7 @@ export function createPublicView(
           const replacement = document.createElement('button');
           replacement.type = 'button';
           replacement.className = 'secondary';
-            replacement.id =
+          replacement.id =
             access === 'authorised'
               ? 'public-open-dashboard'
               : 'calculator-access';
@@ -617,12 +752,16 @@ export function createPublicView(
         view = 'home';
       }
       community = options.community ?? '';
-      publicWelcome = typeof options.publicWelcome === 'string' ? options.publicWelcome : '';
-      authorisedWelcome = typeof options.authorisedWelcome === 'string' ? options.authorisedWelcome : '';
+      publicWelcome =
+        typeof options.publicWelcome === 'string' ? options.publicWelcome : '';
+      authorisedWelcome =
+        typeof options.authorisedWelcome === 'string'
+          ? options.authorisedWelcome
+          : '';
       publicFailed = Boolean(options.failed);
-        if (!optionsLoaded && !publicFailed) {
-          optionsLoaded = true;
-          view = 'home';
+      if (!optionsLoaded && !publicFailed) {
+        optionsLoaded = true;
+        view = 'home';
       }
       if (!enabled && ['inputs', 'results', 'help'].includes(view))
         view = 'home';

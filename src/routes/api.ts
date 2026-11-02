@@ -1,5 +1,11 @@
 import { Hono } from 'hono';
 import { flair, flairAvailable } from './flair.ts';
+import { inferUnits } from '../tools/flair.ts';
+import {
+  TEEN_GUIDANCE_KEY,
+  parseTeenGuidance,
+  type TeenGuidanceConfig,
+} from '../core/teen-guidance.ts';
 import { context, reddit, settings, redis } from '@devvit/web/server';
 import {
   hostNames,
@@ -76,39 +82,11 @@ async function welcomeSetting(key: string, fallback: string): Promise<string> {
     ? value
     : fallback;
 }
-const TEEN_GUIDANCE_KEY = 'crew:teen-guidance:v1';
-type TeenGuidanceConfig = {
-  removalReasonId: string;
-  flairTemplateId: string;
-  messageOverride: string;
-  autoApprove: boolean;
-};
 const requireAdmin = (who: Awaited<ReturnType<typeof identity>>) => {
   if (!who.admin) throw new Error('Moderator access is required.');
 };
-const defaultTeenGuidance: TeenGuidanceConfig = {
-  removalReasonId: '',
-  flairTemplateId: '',
-  messageOverride: '',
-  autoApprove: true,
-};
 async function teenGuidanceConfig(): Promise<TeenGuidanceConfig> {
-  const raw = await redis.get(TEEN_GUIDANCE_KEY);
-  if (!raw) return { ...defaultTeenGuidance };
-  try {
-    const value = JSON.parse(raw) as Partial<TeenGuidanceConfig>;
-    return {
-      removalReasonId:
-        typeof value.removalReasonId === 'string' ? value.removalReasonId : '',
-      flairTemplateId:
-        typeof value.flairTemplateId === 'string' ? value.flairTemplateId : '',
-      messageOverride:
-        typeof value.messageOverride === 'string' ? value.messageOverride : '',
-      autoApprove: value.autoApprove !== false,
-    };
-  } catch {
-    return { ...defaultTeenGuidance };
-  }
+  return parseTeenGuidance(await redis.get(TEEN_GUIDANCE_KEY));
 }
 api.get('/dashboard/teen-guidance', async (c) => {
   const who = await identity();
@@ -162,6 +140,7 @@ api.post('/dashboard/teen-guidance', async (c) => {
     flairTemplateId,
     messageOverride,
     autoApprove: body.autoApprove !== false,
+    flairOnModeratorRemoval: body.flairOnModeratorRemoval === true,
   };
   await redis.set(TEEN_GUIDANCE_KEY, JSON.stringify(saved));
   return c.json({ ok: true });
@@ -190,6 +169,23 @@ api.get('/public', async (c) => {
     authorisedWelcome,
     moderator,
   });
+});
+// Unit choices only (e.g. lb, ft) inferred from the signed-in member's flair,
+// so the calculator can preselect them. Never returns the flair text or any
+// measurement, and stores nothing. Signed-out visitors get no hint.
+api.get('/calculator-units', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const enabled = await settings.get('enableCommunityCalculator');
+  if (!context.userId || !(enabled === true || enabled === 'true'))
+    return c.json({});
+  try {
+    const user = await reddit.getCurrentUser();
+    const flair = await user?.getUserFlairBySubreddit(context.subredditName);
+    const { weight, height } = inferUnits(flair?.flairText ?? '');
+    return c.json({ ...(weight && { weight }), ...(height && { height }) });
+  } catch {
+    return c.json({});
+  }
 });
 api.get('/access', async (c) => {
   c.header('Cache-Control', 'no-store');
@@ -393,6 +389,7 @@ api.get('/dashboard', async (c) => {
           item.seriesType === 'simple' ? item.showHostCredit === true : true,
         checkInOnDayOne: item.checkInOnDayOne !== false,
         checkInOnLastDay: item.checkInOnLastDay === true,
+        lockAfterDays: item.lockAfterDays ?? 0,
         maintainers: item.maintainers.map((member) => ({
           username: member.username,
           through: member.through,
@@ -462,6 +459,45 @@ api.get('/dashboard/preview', async (c) => {
   });
 });
 
+// Comment totals for published posts in one series, fetched on demand so
+// dashboard loads stay fast. Counts only: no usernames or comment text.
+api.post('/dashboard/comment-counts', async (c) => {
+  const who = await identity();
+  const body = (await c.req.json()) as {
+    seriesId?: unknown;
+    publicationKeys?: unknown;
+  };
+  const seriesId = typeof body.seriesId === 'string' ? body.seriesId : '';
+  const series = (await config()).series.find((s) => s.id === seriesId);
+  if (!series || !allowed(series, who))
+    return c.json({ error: 'You do not have access to this series.' }, 403);
+  const prefix = `crew:post:${series.id}:`;
+  const keys = Array.isArray(body.publicationKeys)
+    ? body.publicationKeys
+        .filter(
+          (key): key is string =>
+            typeof key === 'string' && key.startsWith(prefix)
+        )
+        .slice(0, 100)
+    : [];
+  const counts: Record<string, number> = {};
+  for (let i = 0; i < keys.length; i += 8)
+    await Promise.all(
+      keys.slice(i, i + 8).map(async (key) => {
+        const record = await publicationStore.read(key);
+        if (record?.status !== 'posted' || !record.postId) return;
+        try {
+          const post = await reddit.getPostById(
+            record.postId as `t3_${string}`
+          );
+          counts[key] = post.numberOfComments;
+        } catch {
+          // A deleted or unavailable post simply has no count.
+        }
+      })
+    );
+  return c.json({ counts });
+});
 api.post('/dashboard/action', async (c) => {
   const who = await identity();
   const body = (await c.req.json()) as {
@@ -474,6 +510,7 @@ api.post('/dashboard/action', async (c) => {
     enabled?: unknown;
     checkInOnDayOne?: unknown;
     checkInOnLastDay?: unknown;
+    lockAfterDays?: unknown;
     signupSticky?: unknown;
     dailySticky?: unknown;
     roundupSticky?: unknown;
@@ -1044,6 +1081,18 @@ api.post('/dashboard/action', async (c) => {
           series[key] = body[key];
         }
       }
+    }
+    if (body.lockAfterDays !== undefined) {
+      const days = body.lockAfterDays;
+      if (
+        typeof days !== 'number' ||
+        !Number.isInteger(days) ||
+        days < 0 ||
+        days > 60
+      )
+        throw Error('Lock posts after a whole number of days from 0 to 60.');
+      if (days) series.lockAfterDays = days;
+      else delete series.lockAfterDays;
     }
     if (body.label !== undefined) {
       if (!who.admin)
