@@ -559,6 +559,78 @@ void test('old threads are locked once after the configured days', async () => {
   assert.equal(recent.lockCalls, 0);
   records.delete('crew:thread-lock:sweep');
 });
+void test('a failed lock is retried on later sweeps and only recorded once locked', async () => {
+  const cfg = reset();
+  cfg.series[0]!.lockAfterDays = 2;
+  records.set('crew:config:v1', JSON.stringify(cfg));
+  const id = cfg.series[0]!.id;
+  const start = new Date('2026-11-02T12:00:00Z');
+  const hour = 60 * 60_000;
+  const add = (
+    key: string,
+    postId: string,
+    failures: number,
+    locked = false
+  ) => {
+    const at = new Date(start.getTime() - 3 * 86_400_000).toISOString();
+    records.set(
+      key,
+      JSON.stringify({ status: 'posted', at, actor: 'scheduler', postId })
+    );
+    const month = at.slice(0, 7);
+    const hash = JSON.parse(records.get(`crew:history:${id}:${month}`) ?? '{}');
+    records.set(
+      `crew:history:${id}:${month}`,
+      JSON.stringify({ ...hash, [key]: '{}' })
+    );
+    const post = {
+      ...fakePost,
+      id: postId,
+      locked,
+      lockCalls: 0,
+      failuresLeft: failures,
+      async lock() {
+        this.lockCalls++;
+        if (this.failuresLeft-- > 0)
+          throw Error('Reddit temporarily unavailable');
+        this.locked = true;
+      },
+    };
+    fakePosts.set(postId, post);
+    return post;
+  };
+  const flaky = add(`crew:post:${id}:2026-10-30:daily`, 't3_flaky', 1);
+  const broken = add(`crew:post:${id}:2026-10-29:daily`, 't3_broken', 99);
+  const already = add(
+    `crew:post:${id}:2026-10-28:daily`,
+    't3_already',
+    0,
+    true
+  );
+  const sweep = async (hoursLater: number) => {
+    records.delete('crew:thread-lock:sweep');
+    return lockOldThreads(new Date(start.getTime() + hoursLater * hour));
+  };
+
+  // First sweep: the already-locked thread is confirmed without a lock call;
+  // the temporary failure is not recorded as done.
+  assert.equal(await sweep(0), 1);
+  assert.equal(already.lockCalls, 0);
+  assert.equal(flaky.locked, false);
+  assert.equal(
+    records.has(`crew:thread-lock:done:crew:post:${id}:2026-10-30:daily`),
+    false
+  );
+  // Next sweep retries and succeeds.
+  assert.equal(await sweep(1), 1);
+  assert.equal(flaky.locked, true);
+  assert.equal(flaky.lockCalls, 2);
+  // A thread that keeps failing is given up on after five attempts.
+  for (let i = 2; i < 8; i++) await sweep(i);
+  assert.equal(broken.lockCalls, 5);
+  assert.equal(broken.locked, false);
+  records.delete('crew:thread-lock:sweep');
+});
 void test('lock-after days are validated and saved per series', async () => {
   reset();
   const update = (lockAfterDays: unknown, revision: number) =>
