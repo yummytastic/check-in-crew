@@ -54,6 +54,9 @@ export function createPublicView(
   let helpTab = 'basics';
   let heightUnits = 'cm';
   let weightUnits = 'kg';
+  // Unit preferences inferred from the member's flair (unit choices only).
+  let unitHintsRequested = false;
+  let unitsChosen = false;
   let heightCm = NaN,
     weightKg = NaN;
   const values = {
@@ -456,7 +459,46 @@ export function createPublicView(
           ? num(values.height)
           : imperialToCm(num(values.feet), num(values.inches));
   }
+  async function loadUnitHints() {
+    if (unitHintsRequested) return;
+    unitHintsRequested = true;
+    let hints;
+    try {
+      const response = await fetch('/api/calculator-units');
+      if (!response.ok) return;
+      hints = await response.json();
+    } catch {
+      return;
+    }
+    const measurementsEmpty = [
+      'height',
+      'feet',
+      'inches',
+      'weight',
+      'stone',
+      'pounds',
+    ].every((name) => !String(values[name] ?? '').trim());
+    // Never switch units under entered values or while someone is typing.
+    if (
+      unitsChosen ||
+      !measurementsEmpty ||
+      (root.contains(document.activeElement) &&
+        document.activeElement.matches('input, select, textarea'))
+    )
+      return;
+    const nextHeight = ['cm', 'ft'].includes(hints.height)
+      ? hints.height
+      : heightUnits;
+    const nextWeight = ['kg', 'lb', 'st'].includes(hints.weight)
+      ? hints.weight
+      : weightUnits;
+    if (nextHeight === heightUnits && nextWeight === weightUnits) return;
+    heightUnits = nextHeight;
+    weightUnits = nextWeight;
+    if (view === 'inputs') render();
+  }
   function bindInputs() {
+    void loadUnitHints();
     root.querySelectorAll('[data-calc]').forEach((field) => {
       field.addEventListener('input', () => {
         values[field.dataset.calc] = field.value;
@@ -486,6 +528,7 @@ export function createPublicView(
           return;
         }
         heightUnits = event.target.value;
+        unitsChosen = true;
         if (heightUnits === 'cm') values.height = textNumber(heightCm);
         else {
           const converted = cmToImperial(heightCm);
@@ -516,6 +559,7 @@ export function createPublicView(
           return;
         }
         weightUnits = event.target.value;
+        unitsChosen = true;
         if (weightUnits === 'kg') values.weight = textNumber(weightKg);
         else if (weightUnits === 'lb')
           values.weight = textNumber(kgToPounds(weightKg));

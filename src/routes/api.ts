@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { flair, flairAvailable } from './flair.ts';
+import { inferUnits } from '../tools/flair.ts';
 import {
   TEEN_GUIDANCE_KEY,
   parseTeenGuidance,
@@ -168,6 +169,23 @@ api.get('/public', async (c) => {
     authorisedWelcome,
     moderator,
   });
+});
+// Unit choices only (e.g. lb, ft) inferred from the signed-in member's flair,
+// so the calculator can preselect them. Never returns the flair text or any
+// measurement, and stores nothing. Signed-out visitors get no hint.
+api.get('/calculator-units', async (c) => {
+  c.header('Cache-Control', 'no-store');
+  const enabled = await settings.get('enableCommunityCalculator');
+  if (!context.userId || !(enabled === true || enabled === 'true'))
+    return c.json({});
+  try {
+    const user = await reddit.getCurrentUser();
+    const flair = await user?.getUserFlairBySubreddit(context.subredditName);
+    const { weight, height } = inferUnits(flair?.flairText ?? '');
+    return c.json({ ...(weight && { weight }), ...(height && { height }) });
+  } catch {
+    return c.json({});
+  }
 });
 api.get('/access', async (c) => {
   c.header('Cache-Control', 'no-store');

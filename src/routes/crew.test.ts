@@ -16,6 +16,7 @@ const ctx = {
 };
 const modmailAlerts: { subject: string; bodyMarkdown: string }[] = [];
 let failSubmit = false;
+let memberFlairText = '';
 let failReserve = false;
 let banned = false;
 let failIdentity = false;
@@ -104,6 +105,9 @@ const user = (id: string) => ({
   username: id.slice(3),
   async getModPermissionsForSubreddit() {
     return id === 't2_admin' ? ['all'] : [];
+  },
+  async getUserFlairBySubreddit() {
+    return { flairText: memberFlairText };
   },
 });
 const fakeRedis = {
@@ -787,6 +791,32 @@ void test('server form and automation integration', async (t) => {
       const cleared = (await config()).series[0]!;
       assert.deepEqual(cleared.maintainers, []);
       assert.deepEqual(cleared.hostRoster, []);
+    }
+  );
+  await t.test(
+    'calculator unit hints return unit choices only, never flair text',
+    async () => {
+      reset();
+      const units = async () =>
+        (await (await api.request('/calculator-units')).json()) as Record<
+          string,
+          string
+        >;
+      memberFlairText = '34F | 5\'6" | SW:210lb CW:180lb';
+      installationSettings.set('enableCommunityCalculator', true);
+      ctx.userId = 't2_member';
+      assert.deepEqual(await units(), { weight: 'lb', height: 'ft' });
+      assert.doesNotMatch(JSON.stringify(await units()), /210|180|34F/);
+      memberFlairText = 'Slow and steady';
+      assert.deepEqual(await units(), {});
+      memberFlairText = '72kg';
+      ctx.userId = '';
+      assert.deepEqual(await units(), {});
+      ctx.userId = 't2_member';
+      installationSettings.set('enableCommunityCalculator', false);
+      assert.deepEqual(await units(), {});
+      memberFlairText = '';
+      ctx.userId = 't2_admin';
     }
   );
   await t.test(
