@@ -107,6 +107,22 @@ export function calculate(input: CalculatorInput) {
     bmi: (input.weightKg / (input.heightCm / 100) ** 2).toFixed(1),
   };
 }
+/**
+ * Estimated maintenance at another weight, with every other detail unchanged.
+ * Shows how the estimate moves with weight; it is not a target.
+ */
+export function compareMaintenance(
+  input: CalculatorInput,
+  otherWeightKg: number
+): { kcal: number; difference: number } | { error: string } {
+  const current = calculate(input);
+  if (current.kcal === undefined)
+    return { error: 'Calculate your current estimate first.' };
+  const other = calculate({ ...input, weightKg: otherWeightKg });
+  if (other.kcal === undefined)
+    return { error: other.errors.weightKg ?? 'Enter a valid weight.' };
+  return { kcal: other.kcal, difference: other.kcal - current.kcal };
+}
 export const poundsToKg = (pounds: number) => pounds * 0.45359237;
 export const kgToPounds = (kg: number) => kg / 0.45359237;
 export const stoneToKg = (stone: number, pounds: number) =>

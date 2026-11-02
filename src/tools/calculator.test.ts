@@ -11,6 +11,7 @@ import {
   stoneToKg,
   kgToStone,
   parseMeasurement,
+  compareMaintenance,
 } from './calculator.ts';
 
 void test('calorie estimates match independently worked examples and BMI rounds neutrally', () => {
@@ -120,4 +121,32 @@ void test('measurements accept a decimal point or a single decimal comma', () =>
   assert.ok(Number.isNaN(parseMeasurement('1.234,5')));
   assert.equal(parseMeasurement('72,'), 72);
   assert.ok(Number.isNaN(parseMeasurement('abc')));
+});
+void test('comparison shows maintenance at another weight with other details unchanged', () => {
+  const input = {
+    age: 40,
+    sex: 'female',
+    heightCm: 165,
+    weightKg: 90,
+    activity: 'low',
+  };
+  const now = calculate(input);
+  const lighter = compareMaintenance(input, 80);
+  assert.ok('kcal' in lighter);
+  assert.equal(lighter.kcal, calculate({ ...input, weightKg: 80 }).kcal);
+  assert.equal(lighter.difference, lighter.kcal - now.kcal!);
+  assert.ok(lighter.difference < 0);
+  const heavier = compareMaintenance(input, 100);
+  assert.ok('kcal' in heavier && heavier.difference > 0);
+  const same = compareMaintenance(input, 90);
+  assert.ok('kcal' in same && same.difference === 0);
+  assert.deepEqual(compareMaintenance(input, NaN), {
+    error: 'Check weight: supported range 20–700 kg.',
+  });
+  assert.deepEqual(compareMaintenance(input, 10), {
+    error: 'Check weight: supported range 20–700 kg.',
+  });
+  assert.deepEqual(compareMaintenance({ ...input, age: 15 }, 80), {
+    error: 'Calculate your current estimate first.',
+  });
 });

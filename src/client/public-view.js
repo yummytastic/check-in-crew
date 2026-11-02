@@ -9,6 +9,7 @@ import {
   imperialToCm,
   cmToImperial,
   parseMeasurement,
+  compareMaintenance,
 } from '../tools/calculator.ts';
 
 // Measurements live only in this closure. Never pass them to access checks or links.
@@ -71,6 +72,9 @@ export function createPublicView(
     pounds: '',
   };
   let result;
+  // Inputs behind the current result, and the optional comparison weight.
+  let resultInput;
+  const comparison = { weight: '', stone: '', pounds: '', outcome: '' };
   const esc = (value) =>
     String(value ?? '').replace(
       /[&<>"']/g,
@@ -306,7 +310,7 @@ export function createPublicView(
       content =
         calculatorMode === 'bmi'
           ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`
-          : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
+          : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p>${comparisonSection()}<button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
       footer =
         button('calculator-edit', 'Edit details') +
         button('calculator-home', 'Back to home', true);
@@ -426,6 +430,7 @@ export function createPublicView(
       })
     );
     if (view === 'inputs') bindInputs();
+    if (view === 'results') bindComparison();
   }
   function heightPartsValid() {
     return (
@@ -458,6 +463,54 @@ export function createPublicView(
         heightUnits === 'cm'
           ? num(values.height)
           : imperialToCm(num(values.feet), num(values.inches));
+  }
+  function weightLabel(kg) {
+    if (weightUnits === 'kg') return `${textNumber(kg)} kg`;
+    if (weightUnits === 'lb') return `${textNumber(kgToPounds(kg))} lb`;
+    const { stone, pounds } = kgToStone(kg);
+    return `${stone} st ${textNumber(pounds)} lb`;
+  }
+  function comparisonSection() {
+    const field = (name, label, mode = 'decimal') =>
+      `<label>${label}<input id="compare-${name}" data-compare="${name}" value="${esc(comparison[name])}" inputmode="${mode}" type="text" autocomplete="off" spellcheck="false"></label>`;
+    const fields =
+      weightUnits === 'st'
+        ? `<div class="split-measurement">${field('stone', 'Stone', 'numeric')}${field('pounds', 'Pounds')}</div>`
+        : field('weight', `Weight (${weightUnits})`);
+    return `<section class="calculator-result calculator-compare"><h2>Compare at another weight</h2><p class="public-muted">See how estimated maintenance changes at a different weight, with your other details the same.</p><form id="compare-form" novalidate autocomplete="off">${fields}<button type="submit" class="secondary">Compare</button></form><p role="status" id="compare-outcome">${esc(comparison.outcome)}</p></section>`;
+  }
+  function bindComparison() {
+    const form = root.querySelector('#compare-form');
+    if (!form) return;
+    form.querySelectorAll('[data-compare]').forEach((el) =>
+      el.addEventListener('input', () => {
+        comparison[el.dataset.compare] = el.value;
+      })
+    );
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const otherKg =
+        weightUnits === 'kg'
+          ? num(comparison.weight)
+          : weightUnits === 'lb'
+            ? poundsToKg(num(comparison.weight))
+            : Number.isInteger(num(comparison.stone)) &&
+                num(comparison.pounds || '0') >= 0 &&
+                num(comparison.pounds || '0') < 14
+              ? stoneToKg(num(comparison.stone), num(comparison.pounds || '0'))
+              : NaN;
+      const compared = compareMaintenance(resultInput, otherKg);
+      if ('error' in compared) comparison.outcome = compared.error;
+      else {
+        const change = Math.abs(compared.difference).toLocaleString('en');
+        const direction =
+          compared.difference === 0
+            ? 'the same as now'
+            : `${change} kcal/day ${compared.difference < 0 ? 'lower' : 'higher'} than now`;
+        comparison.outcome = `At ${weightLabel(otherKg)}, estimated maintenance would be about ${compared.kcal.toLocaleString('en')} kcal/day: ${direction}. This is an estimate of maintenance at that weight, not a target.`;
+      }
+      root.querySelector('#compare-outcome').textContent = comparison.outcome;
+    });
   }
   async function loadUnitHints() {
     if (unitHintsRequested) return;
@@ -578,13 +631,14 @@ export function createPublicView(
       .querySelector('#calculator-form')
       .addEventListener('submit', (event) => {
         event.preventDefault();
-        const computed = calculate({
+        const input = {
           age: calculatorMode === 'bmi' ? 18 : num(values.age),
           sex: calculatorMode === 'bmi' ? 'female' : values.sex,
           heightCm,
           weightKg,
           activity: calculatorMode === 'bmi' ? 'low' : values.activity,
-        });
+        };
+        const computed = calculate(input);
         const errors = Object.fromEntries(
           Object.entries(computed.errors).map(([name, error]) => [
             name === 'heightCm'
@@ -629,6 +683,8 @@ export function createPublicView(
           return;
         }
         result = computed;
+        resultInput = input;
+        comparison.outcome = '';
         go('results');
       });
   }
