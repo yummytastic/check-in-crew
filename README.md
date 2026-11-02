@@ -19,6 +19,8 @@ A **series** is a group of posts with its own schedule, templates and maintainer
 
 Monthly series follow actual calendar months, including leap years. In each series' settings, **Also post a check-in on day 1?** is on by default and **Also post a check-in on the last day of the month?** is off by default. Existing series retain those defaults until changed. The start and finish posts remain scheduled either way. Default titles use “30 Day Accountability Challenge”; edit them to suit your community.
 
+Any series can **Lock posts after this many days** (0 = never, the default; up to 60). About once an hour, Check-In Crew locks its published threads that are older than that, so stale threads stop collecting replies nobody is watching; existing comments stay visible. Each thread is handled once: if a moderator unlocks it on Reddit, it is not locked again. Only recent history is checked, so turning the setting on does not lock very old threads.
+
 ## Get started
 
 1. Open the app's community settings and review the default titles, bodies, community note and host credit.

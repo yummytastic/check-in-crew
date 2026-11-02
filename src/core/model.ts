@@ -44,6 +44,8 @@ export type Series = {
   enabled: boolean;
   checkInOnDayOne?: boolean;
   checkInOnLastDay?: boolean;
+  /** Lock published threads this many days after posting; 0 or unset is off. */
+  lockAfterDays?: number;
   archived?: boolean;
   deletion?: {
     token: string;

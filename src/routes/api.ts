@@ -389,6 +389,7 @@ api.get('/dashboard', async (c) => {
           item.seriesType === 'simple' ? item.showHostCredit === true : true,
         checkInOnDayOne: item.checkInOnDayOne !== false,
         checkInOnLastDay: item.checkInOnLastDay === true,
+        lockAfterDays: item.lockAfterDays ?? 0,
         maintainers: item.maintainers.map((member) => ({
           username: member.username,
           through: member.through,
@@ -509,6 +510,7 @@ api.post('/dashboard/action', async (c) => {
     enabled?: unknown;
     checkInOnDayOne?: unknown;
     checkInOnLastDay?: unknown;
+    lockAfterDays?: unknown;
     signupSticky?: unknown;
     dailySticky?: unknown;
     roundupSticky?: unknown;
@@ -1079,6 +1081,18 @@ api.post('/dashboard/action', async (c) => {
           series[key] = body[key];
         }
       }
+    }
+    if (body.lockAfterDays !== undefined) {
+      const days = body.lockAfterDays;
+      if (
+        typeof days !== 'number' ||
+        !Number.isInteger(days) ||
+        days < 0 ||
+        days > 60
+      )
+        throw Error('Lock posts after a whole number of days from 0 to 60.');
+      if (days) series.lockAfterDays = days;
+      else delete series.lockAfterDays;
     }
     if (body.label !== undefined) {
       if (!who.admin)

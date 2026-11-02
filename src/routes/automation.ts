@@ -6,6 +6,7 @@ import {
   publish,
 } from '../core/service.ts';
 import { checkPublication, recordFailure } from '../core/alerts.ts';
+import { lockOldThreads } from '../core/thread-lock.ts';
 import { dueSlots } from '../core/model.ts';
 import { processSeriesDeletions } from '../core/deletion.ts';
 import { processPersonalDataDeletion } from '../core/privacy.ts';
@@ -44,6 +45,12 @@ automation.post('/scheduler/tick', async (c) => {
         }
       }
     }
+  }
+  try {
+    await lockOldThreads(now);
+  } catch (error) {
+    failures++;
+    console.error('Locking old threads needs attention', error);
   }
   try {
     await processSeriesDeletions(now);

@@ -1030,7 +1030,7 @@ function render() {
           ? `<div class="title-format"><label class="checkbox-label"><input type="checkbox" data-show-host-credit ${series.showHostCredit ? 'checked' : ''}> Include host credit in generated posts</label><p class="muted">Off by default for simple recurring posts. Maintainer access is separate from host credit.</p><div data-simple-host-credit ${series.showHostCredit ? '' : 'hidden'}>${defaultHostCredit}</div></div>`
           : `<div class="title-format">${defaultHostCredit}</div>`;
       const hostButton = 'People &amp; access';
-      const seriesSettings = `<div class="type-choice"><strong>${series.seriesType === 'simple' ? 'Simple recurring posts' : 'Monthly series'}</strong><p class="muted">${series.seriesType === 'simple' ? esc(series.scheduleSummary) : typeDescriptions.accountability}</p>${series.seriesType === 'simple' ? `<p class="muted">Next ${series.previewCount} posts shown</p><button type="button" class="secondary" data-change-schedule="${esc(series.id)}">${series.frequency === 'other' && !series.schedule ? 'Choose schedule' : 'Change schedule'}</button>` : `<label class="checkbox-label"><input type="checkbox" data-check-in-day-one ${series.checkInOnDayOne ? 'checked' : ''}> Also post a check-in on day 1?</label><label class="checkbox-label"><input type="checkbox" data-check-in-last-day ${series.checkInOnLastDay ? 'checked' : ''}> Also post a check-in on the last day of the month?</label>`}</div>`;
+      const seriesSettings = `<div class="type-choice"><strong>${series.seriesType === 'simple' ? 'Simple recurring posts' : 'Monthly series'}</strong><p class="muted">${series.seriesType === 'simple' ? esc(series.scheduleSummary) : typeDescriptions.accountability}</p>${series.seriesType === 'simple' ? `<p class="muted">Next ${series.previewCount} posts shown</p><button type="button" class="secondary" data-change-schedule="${esc(series.id)}">${series.frequency === 'other' && !series.schedule ? 'Choose schedule' : 'Change schedule'}</button>` : `<label class="checkbox-label"><input type="checkbox" data-check-in-day-one ${series.checkInOnDayOne ? 'checked' : ''}> Also post a check-in on day 1?</label><label class="checkbox-label"><input type="checkbox" data-check-in-last-day ${series.checkInOnLastDay ? 'checked' : ''}> Also post a check-in on the last day of the month?</label>`}<label>Lock posts after this many days (0 = never)<input type="number" inputmode="numeric" min="0" max="60" step="1" data-lock-after-days value="${esc(series.lockAfterDays ?? 0)}"></label><p class="muted">Stops new comments on older threads; existing comments stay visible. Checked hourly for recent posts. If a moderator unlocks a post on Reddit, it is not locked again.</p></div>`;
       const displayName = state.admin
         ? `<label>Display name<p class="muted">Shown in generated post titles and host credits.</p><input data-label value="${esc(series.label)}" maxlength="40"></label>`
         : '';
@@ -1370,6 +1370,9 @@ async function save(card, id) {
             .checked,
         }
       : {}),
+    lockAfterDays: Number(
+      card.querySelector('[data-lock-after-days]')?.value || 0
+    ),
     signupSticky: card.querySelector('[data-sticky="signup"]')?.value,
     dailySticky: card.querySelector('[data-sticky="daily"]')?.value,
     roundupSticky: card.querySelector('[data-sticky="roundup"]')?.value,

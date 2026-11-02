@@ -59,6 +59,12 @@ let fakePost = {
   createdAt: new Date(),
   flair: undefined as { templateId?: string } | undefined,
   numberOfComments: 0,
+  locked: false,
+  lockCalls: 0,
+  async lock() {
+    this.lockCalls++;
+    this.locked = true;
+  },
   async remove() {
     removed++;
     this.removed = true;
@@ -284,6 +290,7 @@ const { checkTrackedAccounts } = await import('../core/account-cleanup.ts');
 const { api } = await import('./api.ts');
 const { triggers } = await import('./triggers.ts');
 const { recordProblem } = await import('../core/alerts.ts');
+const { lockOldThreads } = await import('../core/thread-lock.ts');
 const {
   publish,
   config,
@@ -505,6 +512,74 @@ void test('only uncertain or long-pending publications count as problems', () =>
   assert.deepEqual(recordProblem(record('uncertain', 0), now), {
     kind: 'uncertain',
   });
+});
+void test('old threads are locked once after the configured days', async () => {
+  const cfg = reset();
+  cfg.series[0]!.lockAfterDays = 2;
+  records.set('crew:config:v1', JSON.stringify(cfg));
+  const now = new Date('2026-11-02T12:00:00Z');
+  const id = cfg.series[0]!.id;
+  const publish = (key: string, postId: string, daysAgo: number) => {
+    const at = new Date(now.getTime() - daysAgo * 86_400_000).toISOString();
+    records.set(
+      key,
+      JSON.stringify({ status: 'posted', at, actor: 'scheduler', postId })
+    );
+    const month = at.slice(0, 7);
+    const hash = JSON.parse(records.get(`crew:history:${id}:${month}`) ?? '{}');
+    records.set(
+      `crew:history:${id}:${month}`,
+      JSON.stringify({ ...hash, [key]: '{}' })
+    );
+    const post = { ...fakePost, id: postId, locked: false, lockCalls: 0 };
+    fakePosts.set(postId, post);
+    return post;
+  };
+  const old = publish(`crew:post:${id}:2026-10-30:daily`, 't3_old', 3);
+  const lastMonth = publish(`crew:post:${id}:2026-10-05:daily`, 't3_oct', 28);
+  const recent = publish(`crew:post:${id}:2026-11-01:daily`, 't3_new', 1);
+
+  assert.equal(await lockOldThreads(now), 2);
+  assert.equal(old.lockCalls, 1);
+  assert.equal(lastMonth.lockCalls, 1);
+  assert.equal(recent.lockCalls, 0);
+  // At most one sweep an hour.
+  assert.equal(await lockOldThreads(now), 0);
+  // A thread a moderator unlocks is not locked again.
+  records.delete('crew:thread-lock:sweep');
+  old.locked = false;
+  assert.equal(await lockOldThreads(now), 0);
+  assert.equal(old.lockCalls, 1);
+  // Turning the setting off stops locking.
+  records.delete('crew:thread-lock:sweep');
+  cfg.series[0]!.lockAfterDays = 0;
+  records.set('crew:config:v1', JSON.stringify(cfg));
+  const later = new Date(now.getTime() + 2 * 86_400_000);
+  assert.equal(await lockOldThreads(later), 0);
+  assert.equal(recent.lockCalls, 0);
+  records.delete('crew:thread-lock:sweep');
+});
+void test('lock-after days are validated and saved per series', async () => {
+  reset();
+  const update = (lockAfterDays: unknown, revision: number) =>
+    dashboardAction({
+      action: 'update',
+      revision,
+      seriesId: 'eu',
+      lockAfterDays,
+    });
+  assert.equal((await update(61, 0)).status, 400);
+  assert.equal((await update(1.5, 0)).status, 400);
+  assert.equal((await update(7, 0)).status, 200);
+  assert.equal(
+    (await config()).series.find((s) => s.id === 'eu')?.lockAfterDays,
+    7
+  );
+  assert.equal((await update(0, 1)).status, 200);
+  assert.equal(
+    (await config()).series.find((s) => s.id === 'eu')?.lockAfterDays,
+    undefined
+  );
 });
 void test('moderator removal-reason flair is saved off by default and flairs via the mod log', async () => {
   reset();
