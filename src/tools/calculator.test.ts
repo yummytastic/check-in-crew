@@ -35,7 +35,12 @@ void test('calorie estimates match independently worked examples and BMI rounds 
   });
   assert.equal(female.kcal, 2046);
   assert.equal(female.bmi, '23.9'); // 65 / 2.7225 = 23.875114…
-  assert.deepEqual(Object.keys(female).sort(), ['bmi', 'errors', 'kcal']);
+  assert.deepEqual(Object.keys(female).sort(), [
+    'bmi',
+    'errors',
+    'formula',
+    'kcal',
+  ]);
   assert.deepEqual(
     activityLevels.map((level) => level.factor),
     [1.2, 1.375, 1.55, 1.725, 1.9]
@@ -149,4 +154,31 @@ void test('comparison shows maintenance at another weight with other details unc
   assert.deepEqual(compareMaintenance({ ...input, age: 15 }, 80), {
     error: 'Calculate your current estimate first.',
   });
+});
+void test('optional body fat uses Katch–McArdle; blank keeps Mifflin–St Jeor', () => {
+  const input = {
+    age: 40,
+    sex: 'female',
+    heightCm: 165,
+    weightKg: 90,
+    activity: 'low',
+  };
+  const mifflin = calculate(input);
+  assert.equal(mifflin.formula, 'mifflin-st-jeor');
+  const katch = calculate({ ...input, bodyFat: 35 });
+  assert.equal(katch.formula, 'katch-mcardle');
+  const factor = activityLevels.find((level) => level.id === 'low')!.factor;
+  // 370 + 21.6 × (90 × 0.65) = 1633.6 kcal resting.
+  assert.equal(katch.kcal, Math.round((370 + 21.6 * 90 * 0.65) * factor));
+  // BMI is unaffected by the formula choice.
+  assert.equal(katch.bmi, mifflin.bmi);
+  for (const bodyFat of [2, 71, NaN]) {
+    assert.deepEqual(calculate({ ...input, bodyFat }).errors, {
+      bodyFat: 'Use a body-fat percentage from 3–70, or leave it blank.',
+    });
+  }
+  // Comparisons keep the same body-fat percentage.
+  const compared = compareMaintenance({ ...input, bodyFat: 35 }, 80);
+  assert.ok('kcal' in compared);
+  assert.equal(compared.kcal, Math.round((370 + 21.6 * 80 * 0.65) * factor));
 });

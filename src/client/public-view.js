@@ -70,6 +70,7 @@ export function createPublicView(
     weight: '',
     stone: '',
     pounds: '',
+    bodyFat: '',
   };
   let result;
   // Inputs behind the current result, and the optional comparison weight.
@@ -119,6 +120,10 @@ export function createPublicView(
   }
   const sources = [
     ['Mifflin–St Jeor study', 'https://pubmed.ncbi.nlm.nih.gov/2305711/'],
+    [
+      'Equation comparison incl. Katch–McArdle',
+      'https://pmc.ncbi.nlm.nih.gov/articles/PMC7912292/',
+    ],
     [
       'Activity factors (Q&A, p. 1)',
       'https://healthcare.orgain.com/media/webinar/qa/MakingGoodAthletesGreatQ_A.pdf',
@@ -293,7 +298,7 @@ export function createPublicView(
         )}</select></label>${weightUnits === 'st' ? `<div class="split-measurement">${input('stone', 'Stone', 'numeric')}${input('pounds', 'Pounds')}</div>` : input('weight', weightUnits === 'kg' ? 'Weight (kg)' : 'Weight (lb)')}</div>${
         calculatorMode === 'bmi'
           ? ''
-          : `<div class="activity-field">${select(
+          : `<div class="activity-field">${input('bodyFat', 'Body fat % (optional)')}<p class="public-muted">Leave blank unless you know it. If entered, the Katch–McArdle formula is used instead. Studies are mixed, and extra detail doesn’t necessarily make the estimate more accurate.</p></div><div class="activity-field">${select(
               'activity',
               'Activity level',
               activityLevels.map((level) => [level.id, level.label])
@@ -310,7 +315,7 @@ export function createPublicView(
       content =
         calculatorMode === 'bmi'
           ? `<section class="calculator-result"><h2>BMI estimate</h2><p class="result-value">${esc(result.bmi)}</p><p>BMI is a screening measure, not a diagnosis.</p></section><button type="button" class="link-button" id="calculation-help">How this is calculated</button>`
-          : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p></section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p>${comparisonSection()}<button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
+          : `<section class="calculator-result"><h2>Estimated daily calorie needs</h2><p class="result-value">${esc(result.kcal.toLocaleString('en'))} <span>kcal/day</span></p><p>Estimated calories to maintain your current weight.</p>${result.formula === 'katch-mcardle' ? '<p class="public-muted">Estimated with the Katch–McArdle formula using your body-fat percentage.</p>' : ''}</section><section class="calculator-result"><h2>BMI</h2><p class="result-value">${esc(result.bmi)}</p></section><p class="public-muted">Calorie needs are estimates; individual needs vary.</p>${comparisonSection()}<button type="button" class="link-button" id="calculation-help">How this is calculated</button>`;
       footer =
         button('calculator-edit', 'Edit details') +
         button('calculator-home', 'Back to home', true);
@@ -322,7 +327,7 @@ export function createPublicView(
         activity:
           '<p>These are rough guides to total daily movement, work and purposeful exercise, not a score for workout frequency alone. A short session does not cancel out a mostly seated day.</p><p>Very active and extremely active are for sustained high workloads, including demanding athletic lifestyles. Select them only when your usual routine fits; they are not a shortcut to a higher calorie estimate.</p><p>Every result estimates maintenance, not a weight-loss target. Being in a calorie deficit does not determine your activity level.</p>',
         formula:
-          '<p><strong>Mifflin–St Jeor:</strong> 10 × kg + 6.25 × cm − 5 × age, then +5 (male) or −161 (female), estimates resting kcal/day. Multiply by activity for daily needs.</p><p><strong>Sex input:</strong> the study used female and male groups with different constants. This is a formula choice, not a gender label; it may not reflect your physiology or hormone treatment.</p>',
+          '<p><strong>Mifflin–St Jeor:</strong> 10 × kg + 6.25 × cm − 5 × age, then +5 (male) or −161 (female), estimates resting kcal/day. Multiply by activity for daily needs.</p><p><strong>Sex input:</strong> the study used female and male groups with different constants. This is a formula choice, not a gender label; it may not reflect your physiology or hormone treatment.</p><p><strong>Katch–McArdle (optional):</strong> if you enter a body-fat percentage, resting kcal/day is 370 + 21.6 × lean mass in kg (weight × (1 − body fat ÷ 100)), then multiplied by activity. It is offered because it is a common alternative in exercise and fitness settings. Studies comparing it with measured energy use are mixed: it suits some groups better and others worse, and it depends on an accurate body-fat figure, which is hard to measure. Extra detail doesn’t necessarily give a more accurate result.</p>',
         limits: `<p>For adults 18+. Not designed for pregnancy, breastfeeding or clinical nutrition. Body composition, health and age can affect accuracy; the original study included ages 19–78.</p><p>Measurements and results stay in memory on this device and disappear when the app reloads. Source links contain none of your details.</p><nav aria-label="Calculation sources">${sources.map(([label, url]) => `<button type="button" class="link-button" data-source="${url}">${label}</button>`).join('')}</nav>`,
       };
       content = `<nav class="help-tabs" aria-label="Help topics">${[
@@ -507,7 +512,7 @@ export function createPublicView(
           compared.difference === 0
             ? 'the same as now'
             : `${change} kcal/day ${compared.difference < 0 ? 'lower' : 'higher'} than now`;
-        comparison.outcome = `At ${weightLabel(otherKg)}, estimated maintenance would be about ${compared.kcal.toLocaleString('en')} kcal/day: ${direction}. This is an estimate of maintenance at that weight, not a target.`;
+        comparison.outcome = `At ${weightLabel(otherKg)}${resultInput.bodyFat === undefined ? '' : ' (assuming the same body-fat percentage)'}, estimated maintenance would be about ${compared.kcal.toLocaleString('en')} kcal/day: ${direction}. This is an estimate of maintenance at that weight, not a target.`;
       }
       root.querySelector('#compare-outcome').textContent = comparison.outcome;
     });
@@ -637,6 +642,11 @@ export function createPublicView(
           heightCm,
           weightKg,
           activity: calculatorMode === 'bmi' ? 'low' : values.activity,
+          // Blank means "not given"; anything typed must be valid.
+          bodyFat:
+            calculatorMode === 'bmi' || !values.bodyFat.trim()
+              ? undefined
+              : num(values.bodyFat),
         };
         const computed = calculate(input);
         const errors = Object.fromEntries(

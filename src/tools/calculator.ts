@@ -58,6 +58,8 @@ export type CalculatorInput = {
   heightCm: number;
   weightKg: number;
   activity: string;
+  /** Optional body-fat percentage; when given, Katch–McArdle is used. */
+  bodyFat?: number | undefined;
 };
 export type CalculatorErrors = Partial<Record<keyof CalculatorInput, string>>;
 export function validateCalculator(input: CalculatorInput): CalculatorErrors {
@@ -82,16 +84,27 @@ export function validateCalculator(input: CalculatorInput): CalculatorErrors {
     errors.weightKg = 'Check weight: supported range 20–700 kg.';
   if (!activityLevels.some((level) => level.id === input.activity))
     errors.activity = 'Choose an activity level.';
+  if (
+    input.bodyFat !== undefined &&
+    (!Number.isFinite(input.bodyFat) || input.bodyFat < 3 || input.bodyFat > 70)
+  )
+    errors.bodyFat = 'Use a body-fat percentage from 3–70, or leave it blank.';
   return errors;
 }
 export function calculate(input: CalculatorInput) {
   const errors = validateCalculator(input);
   if (Object.keys(errors).length) return { errors };
+  // Katch–McArdle (370 + 21.6 × lean mass in kg) when body fat is known;
+  // otherwise Mifflin–St Jeor. Neither is consistently more accurate.
+  const formula =
+    input.bodyFat === undefined ? 'mifflin-st-jeor' : 'katch-mcardle';
   const resting =
-    10 * input.weightKg +
-    6.25 * input.heightCm -
-    5 * input.age +
-    (input.sex === 'male' ? 5 : -161);
+    formula === 'katch-mcardle'
+      ? 370 + 21.6 * input.weightKg * (1 - input.bodyFat! / 100)
+      : 10 * input.weightKg +
+        6.25 * input.heightCm -
+        5 * input.age +
+        (input.sex === 'male' ? 5 : -161);
   if (resting <= 0)
     return {
       errors: {
@@ -104,6 +117,7 @@ export function calculate(input: CalculatorInput) {
   return {
     errors: {} as CalculatorErrors,
     kcal: Math.round(resting * factor),
+    formula,
     bmi: (input.weightKg / (input.heightCm / 100) ** 2).toFixed(1),
   };
 }
