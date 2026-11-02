@@ -90,6 +90,7 @@ export function findModAction<T extends { id?: string | undefined }>(
 export type ModActionEvent = {
   id?: string | undefined;
   action?: string | undefined;
+  actionedAt?: string | Date | undefined;
   subreddit?: { name?: string | undefined } | undefined;
   moderator?: { name?: string | undefined } | undefined;
   targetPost?: { id?: string | undefined } | undefined;
@@ -99,10 +100,68 @@ export type ModActionEvent = {
 export type RemovalReasonLogEntry = {
   id?: string | undefined;
   moderatorName?: string | undefined;
+  createdAt?: string | Date | undefined;
   description?: string | undefined;
   details?: string | undefined;
   target?: { id?: string | undefined } | undefined;
 };
+
+/** What identifies the log entry for one moderator action. */
+export type LogLookup = {
+  actionId?: string | undefined;
+  postId: string;
+  moderatorName?: string | undefined;
+  /** The event's actionedAt when given; otherwise when it was received. */
+  referenceTime: number;
+  /** Whether referenceTime is the action's own time (a tighter window). */
+  exactTime: boolean;
+};
+
+export type LogSelection =
+  | { entry: RemovalReasonLogEntry; method: 'action-id' | 'time-window' }
+  | { entry?: undefined; method: 'none' | 'ambiguous' };
+
+// With the action's own time, the entry is within seconds of it. Without it,
+// the action happened shortly before the trigger was received.
+const EXACT_WINDOW_MS = 15_000;
+const RECEIVED_WINDOW_BEFORE_MS = 90_000;
+const RECEIVED_WINDOW_AFTER_MS = 5_000;
+
+/**
+ * Picks the log entry for one action. With an action ID only that exact entry
+ * counts. Reddit can omit the ID, so otherwise an entry must be for the same
+ * post, by the same moderator when known, inside a short time window, and the
+ * only such entry; two candidates are ambiguous and nothing is chosen.
+ */
+export function selectLogEntry(
+  entries: RemovalReasonLogEntry[],
+  lookup: LogLookup
+): LogSelection {
+  if (modActionKey(lookup.actionId)) {
+    const entry = findModAction(entries, lookup.actionId!);
+    return entry ? { entry, method: 'action-id' } : { method: 'none' };
+  }
+  const from =
+    lookup.referenceTime -
+    (lookup.exactTime ? EXACT_WINDOW_MS : RECEIVED_WINDOW_BEFORE_MS);
+  const to =
+    lookup.referenceTime +
+    (lookup.exactTime ? EXACT_WINDOW_MS : RECEIVED_WINDOW_AFTER_MS);
+  const candidates = entries.filter((entry) => {
+    if (entry.target?.id !== lookup.postId) return false;
+    if (
+      lookup.moderatorName &&
+      !sameName(entry.moderatorName, lookup.moderatorName)
+    )
+      return false;
+    const at = entry.createdAt ? new Date(entry.createdAt).getTime() : NaN;
+    return Number.isFinite(at) && at >= from && at <= to;
+  });
+  if (candidates.length > 1) return { method: 'ambiguous' };
+  return candidates[0]
+    ? { entry: candidates[0], method: 'time-window' }
+    : { method: 'none' };
+}
 
 export type RemovalReasonFlairDeps = {
   subredditName: string;
@@ -111,10 +170,13 @@ export type RemovalReasonFlairDeps = {
   removalReasons(): Promise<{ id: string; title?: string | undefined }[]>;
   flairTemplates(): Promise<{ id: string }[]>;
   /**
-   * The moderation-log entries to search for this exact action; the trigger
-   * omits the reason. Called again (after a delay) while the action is absent.
+   * The moderation-log entry for this action (the trigger omits the reason),
+   * chosen with selectLogEntry. A time-window match should be confirmed on a
+   * second read so a newer entry still reaching the log makes it ambiguous.
    */
-  findLogEntry(actionId: string): Promise<RemovalReasonLogEntry | undefined>;
+  findLogEntry(lookup: LogLookup): Promise<LogSelection>;
+  /** When the trigger was received, for events without actionedAt. */
+  now?(): number;
   getPost(postId: string): Promise<{
     subredditName: string;
     flairTemplateId?: string | undefined;
@@ -131,7 +193,7 @@ export type RemovalReasonFlairOutcome =
   | 'disabled'
   | 'comment-target'
   | 'missing-post'
-  | 'missing-action-id'
+  | 'log-entry-ambiguous'
   | 'other-subreddit'
   | 'app-action'
   | 'not-configured'
@@ -181,8 +243,6 @@ export async function flairPostForRemovalReason(
   // A reason on a comment can also name the containing post; never flair it.
   if (event.targetComment?.id) return skip('comment-target');
   if (!/^t3_[A-Za-z0-9]+$/.test(postId)) return skip('missing-post');
-  // The exact action is the only safe link to its removal reason.
-  if (!modActionKey(event.id)) return skip('missing-action-id');
   if (
     event.subreddit?.name &&
     !sameName(event.subreddit.name, deps.subredditName)
@@ -212,11 +272,24 @@ export async function flairPostForRemovalReason(
   )
     return skip('duplicate-reason-title');
 
-  const entry = await deps.findLogEntry(event.id!);
-  if (!entry || !sameModAction(entry.id, event.id))
-    return skip('log-entry-not-found');
+  const actionedAt = event.actionedAt
+    ? new Date(event.actionedAt).getTime()
+    : NaN;
+  const exactTime = Number.isFinite(actionedAt);
+  const selection = await deps.findLogEntry({
+    actionId: event.id,
+    postId,
+    moderatorName: event.moderator?.name || undefined,
+    referenceTime: exactTime ? actionedAt : (deps.now?.() ?? Date.now()),
+    exactTime,
+  });
+  if (selection.method === 'ambiguous')
+    return skip('log-entry-ambiguous', { exactTime });
+  const entry = selection.entry;
+  if (!entry) return skip('log-entry-not-found', { exactTime });
+  const matchMethod = selection.method;
   if (entry.target?.id && entry.target.id !== postId)
-    return skip('log-target-mismatch');
+    return skip('log-target-mismatch', { matchMethod });
   if (sameName(entry.moderatorName, app)) return skip('app-action');
   // Record which field held the reason, never its contents.
   const matchedField = reasonTextMatchesTitle(entry.details, reason.title)
@@ -224,7 +297,7 @@ export async function flairPostForRemovalReason(
     : reasonTextMatchesTitle(entry.description, reason.title)
       ? 'description'
       : undefined;
-  if (!matchedField) return skip('different-reason');
+  if (!matchedField) return skip('different-reason', { matchMethod });
 
   const post = await deps.getPost(postId);
   if (!sameName(post.subredditName, deps.subredditName))
@@ -232,5 +305,5 @@ export async function flairPostForRemovalReason(
   if (post.flairTemplateId === config.flairTemplateId)
     return skip('already-flaired');
   await deps.setPostFlair(postId, config.flairTemplateId);
-  return skip('flaired', { matchedField });
+  return skip('flaired', { matchedField, matchMethod });
 }

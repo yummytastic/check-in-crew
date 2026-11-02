@@ -4,12 +4,18 @@ import {
   findModAction,
   flairPostForRemovalReason,
   parseTeenGuidance,
+  selectLogEntry,
+  type LogLookup,
   reasonTextMatchesTitle,
   type ModActionEvent,
   type RemovalReasonFlairDeps,
   type RemovalReasonLogEntry,
   type TeenGuidanceConfig,
 } from './teen-guidance.ts';
+
+const NOW = Date.parse('2026-11-02T18:34:30Z');
+const secondsAgo = (seconds: number) =>
+  new Date(NOW - seconds * 1000).toISOString();
 
 const enabled: TeenGuidanceConfig = {
   removalReasonId: 'reason-teen',
@@ -44,6 +50,7 @@ function harness(
     setFlair: [] as string[],
     logs: [] as { outcome: string; details: Record<string, unknown> }[],
     reddit: 0,
+    lookups: [] as LogLookup[],
   };
   const post = options.post ?? {
     subredditName: 'loseit_test',
@@ -69,7 +76,8 @@ function harness(
       calls.reddit++;
       return options.flairs ?? [{ id: 'flair-teen' }, { id: 'flair-other' }];
     },
-    findLogEntry: async (actionId) => {
+    now: () => NOW,
+    findLogEntry: async (lookup) => {
       calls.reddit++;
       const log =
         options.log ??
@@ -85,7 +93,8 @@ function harness(
                 target: { id: 't3_post' },
               },
             ]);
-      return findModAction(log, actionId);
+      calls.lookups.push(lookup);
+      return selectLogEntry(log, lookup);
     },
     getPost: async () => {
       calls.reddit++;
@@ -191,16 +200,120 @@ void test('a new different reason never borrows an earlier teen-guidance entry o
   );
 });
 
-void test('an event without an action ID is skipped before any Reddit call', async () => {
-  for (const id of [undefined, '', 'ModAction_']) {
-    const { deps, calls } = harness();
+void test('without an action ID, a lone entry for the same post, moderator and moment matches', async () => {
+  const teen = (overrides: Partial<RemovalReasonLogEntry> = {}) => ({
+    id: 'ModAction_live',
+    moderatorName: 'Yummytastic',
+    details: '2: Teenage Weightloss Guidance',
+    target: { id: 't3_post' },
+    createdAt: secondsAgo(3),
+    ...overrides,
+  });
+  // Reddit omitted the ID; the receipt time bounds the search.
+  const received = harness({ log: [teen()] });
+  assert.equal(
+    await flairPostForRemovalReason(event({ id: undefined }), received.deps),
+    'flaired'
+  );
+  assert.equal(received.calls.lookups[0]?.exactTime, false);
+  assert.equal(received.calls.logs.at(-1)?.details.matchMethod, 'time-window');
+  // With actionedAt, the window is centred on the action itself.
+  const timed = harness({ log: [teen({ createdAt: secondsAgo(62) })] });
+  assert.equal(
+    await flairPostForRemovalReason(
+      event({ id: '', actionedAt: secondsAgo(60) }),
+      timed.deps
+    ),
+    'flaired'
+  );
+  assert.equal(timed.calls.lookups[0]?.exactTime, true);
+});
+
+void test('without an action ID, older, foreign or ambiguous entries never match', async () => {
+  const entry = (overrides: Partial<RemovalReasonLogEntry>) => ({
+    id: 'ModAction_x',
+    moderatorName: 'Yummytastic',
+    details: '2: Teenage Weightloss Guidance',
+    target: { id: 't3_post' },
+    createdAt: secondsAgo(3),
+    ...overrides,
+  });
+  const cases: [string, RemovalReasonLogEntry[], string][] = [
+    // The review scenario: an earlier teen-guidance entry on the same post
+    // while the newer (different) action has not reached the log.
+    [
+      'older entry',
+      [entry({ createdAt: secondsAgo(600) })],
+      'log-entry-not-found',
+    ],
+    [
+      'another moderator',
+      [entry({ moderatorName: 'SomeoneElse' })],
+      'log-entry-not-found',
+    ],
+    [
+      'another post',
+      [entry({ target: { id: 't3_other' } })],
+      'log-entry-not-found',
+    ],
+    ['no timestamp', [entry({ createdAt: undefined })], 'log-entry-not-found'],
+    [
+      'two reasons moments apart',
+      [
+        entry({
+          id: 'ModAction_a',
+          details: '1: Rule 1: Be kind',
+          createdAt: secondsAgo(2),
+        }),
+        entry({ id: 'ModAction_b', createdAt: secondsAgo(8) }),
+      ],
+      'log-entry-ambiguous',
+    ],
+  ];
+  for (const [name, log, outcome] of cases) {
+    const { deps, calls } = harness({ log });
     assert.equal(
-      await flairPostForRemovalReason(event({ id }), deps),
-      'missing-action-id'
+      await flairPostForRemovalReason(event({ id: undefined }), deps),
+      outcome,
+      name
     );
-    assert.equal(calls.reddit, 0);
-    assert.equal(calls.setFlair.length, 0);
+    assert.equal(calls.setFlair.length, 0, name);
   }
+});
+
+void test('log selection windows: exact time ±15s, receipt time 90s before to 5s after', () => {
+  const at = (iso: string) => ({
+    id: 'ModAction_1',
+    target: { id: 't3_post' },
+    createdAt: iso,
+  });
+  const base = { postId: 't3_post', referenceTime: NOW };
+  const pick = (iso: string, exactTime: boolean) =>
+    selectLogEntry([at(iso)], { ...base, exactTime }).method;
+  assert.equal(pick(secondsAgo(15), true), 'time-window');
+  assert.equal(pick(secondsAgo(-15), true), 'time-window');
+  assert.equal(pick(secondsAgo(16), true), 'none');
+  assert.equal(pick(secondsAgo(90), false), 'time-window');
+  assert.equal(pick(secondsAgo(91), false), 'none');
+  assert.equal(pick(secondsAgo(-5), false), 'time-window');
+  assert.equal(pick(secondsAgo(-6), false), 'none');
+  // An action ID, when present, is the only thing that counts.
+  assert.equal(
+    selectLogEntry([at(secondsAgo(1))], {
+      ...base,
+      exactTime: true,
+      actionId: 'ModAction_other',
+    }).method,
+    'none'
+  );
+  assert.equal(
+    selectLogEntry([at(secondsAgo(600))], {
+      ...base,
+      exactTime: true,
+      actionId: 'ModAction_1',
+    }).method,
+    'action-id'
+  );
 });
 
 void test('diagnostic logs never include the log entry text', async () => {
@@ -234,6 +347,7 @@ void test('another moderator applying the reason to a post sets the flair', asyn
         actionId: 'ModAction_1',
         postId: 't3_post',
         matchedField: 'details',
+        matchMethod: 'action-id',
       },
     },
   ]);
