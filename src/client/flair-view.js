@@ -1,4 +1,9 @@
-import { formatFields, renderFlair } from '../tools/flair.ts';
+import {
+  formatFields,
+  inferUnits,
+  parseFlair,
+  renderFlair,
+} from '../tools/flair.ts';
 
 // Deliberately independent of calculator state. Only Apply sends the selected fields.
 export function createFlairView(root, { back }) {
@@ -7,7 +12,9 @@ export function createFlairView(root, { back }) {
     stage = 'loading',
     notice = '',
     busy = false,
-    generation = 0;
+    generation = 0,
+    prefilled = false,
+    defaultUnits = {};
   const values = {};
   const esc = (value) =>
     String(value ?? '').replace(
@@ -38,7 +45,10 @@ export function createFlairView(root, { back }) {
     const v = (values[field.id] ??= {
       value: '',
       extra: '',
-      unit: field.type === 'weight' ? 'kg' : 'cm',
+      unit:
+        field.type === 'weight'
+          ? (defaultUnits.weight ?? 'kg')
+          : (defaultUnits.height ?? 'cm'),
     });
     const options =
       field.type === 'weight'
@@ -69,7 +79,7 @@ export function createFlairView(root, { back }) {
       footer += '<button type="button" id="flair-retry">Try again</button>';
     }
     if (stage === 'edit') {
-      content = `<p>Current flair: <strong>${esc(config.current.text || 'None')}</strong></p><p class="public-muted">This is separate from the calculator. Choose which details to make public beside your username in r/${esc(config.community)}.</p>${
+      content = `<p>Current flair: <strong>${esc(config.current.text || 'None')}</strong></p>${prefilled ? '<p class="public-muted">The form below is filled in from your current flair. Change what you need, then review.</p>' : ''}<p class="public-muted">This is separate from the calculator. Choose which details to make public beside your username in r/${esc(config.community)}.</p>${
         config.protectedFlair
           ? '<p>Your current flair is protected. Ask a moderator to help change it.</p>'
           : `<label>Flair format<select id="flair-format">${config.formats.map((f) => `<option value="${f.id}"${formatId === f.id ? ' selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label><form id="flair-form" autocomplete="off" novalidate><div class="calculator-grid">${formatFields(
@@ -135,6 +145,20 @@ export function createFlairView(root, { back }) {
       result.error || config.protectedFlair
     );
   }
+  // On first open, read the member's current flair back into the form so a
+  // single change (usually current weight) does not mean re-entering it all.
+  // This runs on the device only; nothing is sent or stored.
+  function prefillFromCurrent() {
+    if (Object.keys(values).length) return;
+    const current = config.current?.text ?? '';
+    defaultUnits = inferUnits(current);
+    const parsed = parseFlair(config, current);
+    if (!parsed) return;
+    formatId = parsed.formatId;
+    for (const [id, value] of Object.entries(parsed.values))
+      values[id] = { value: '', extra: '', ...value };
+    prefilled = true;
+  }
   async function open() {
     const request = ++generation;
     stage = 'loading';
@@ -152,6 +176,7 @@ export function createFlairView(root, { back }) {
         );
       if (!config.formats.some((f) => f.id === formatId))
         formatId = config.formats[0].id;
+      prefillFromCurrent();
       stage = 'edit';
       render();
     } catch (error) {
