@@ -43,12 +43,17 @@ const removalReasons = [
 ];
 const postFlairs = [{ id: 'flair-teen', text: 'Teenage weight loss' }];
 const flairCalls: { postId: string; flairTemplateId: string }[] = [];
-let modLogEntries: {
+type FakeLogEntry = {
   id: string;
   moderatorName: string;
   details?: string;
   target?: { id: string };
-}[] = [];
+  createdAt?: Date;
+};
+let modLogEntries: FakeLogEntry[] = [];
+// Optional: successive moderation-log reads return successive snapshots.
+let modLogSnapshots: FakeLogEntry[][] | undefined;
+let modLogReads = 0;
 let fakePost = {
   id: 't3_trigger',
   authorName: 'AutoModerator',
@@ -246,7 +251,10 @@ mock.module('@devvit/web/server', {
       getModerationLog() {
         return {
           async all() {
-            return modLogEntries;
+            const read = modLogReads++;
+            return modLogSnapshots
+              ? modLogSnapshots[Math.min(read, modLogSnapshots.length - 1)]!
+              : modLogEntries;
           },
         };
       },
@@ -724,6 +732,69 @@ void test('moderator removal-reason flair is saved off by default and flairs via
     },
   ]);
   fakePost.flair = undefined;
+});
+void test('an event without an action ID is matched by post, moderator and time', async () => {
+  reset();
+  await fakeRedis.set(
+    'crew:teen-guidance:v1',
+    JSON.stringify({
+      removalReasonId: 'reason-teen',
+      flairTemplateId: 'flair-teen',
+      messageOverride: '',
+      autoApprove: true,
+      flairOnModeratorRemoval: true,
+    })
+  );
+  // Shaped like the playtest event: no id, no actionedAt.
+  const modAction = () =>
+    triggers.request('/on-mod-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ModAction',
+        action: 'addremovalreason',
+        subreddit: { name: 'loseit_test' },
+        moderator: { name: 'Yummytastic' },
+        targetPost: { id: 't3_trigger' },
+      }),
+    });
+  const teen = (
+    id: string,
+    secondsAgo: number,
+    details = '2: Teenage weight loss'
+  ) => ({
+    id,
+    moderatorName: 'Yummytastic',
+    details,
+    target: { id: 't3_trigger' },
+    createdAt: new Date(Date.now() - secondsAgo * 1000),
+  });
+  flairCalls.length = 0;
+  fakePost.flair = undefined;
+  modLogSnapshots = undefined;
+  modLogEntries = [teen('ModAction_live', 2)];
+  await modAction();
+  assert.deepEqual(
+    flairCalls.map((call) => call.flairTemplateId),
+    ['flair-teen']
+  );
+
+  // A newer, different reason reaches the log after the first read: the
+  // candidate is no longer alone, so nothing is flaired.
+  flairCalls.length = 0;
+  fakePost.flair = undefined;
+  modLogReads = 0;
+  modLogSnapshots = [
+    [teen('ModAction_teen', 20)],
+    [
+      teen('ModAction_other', 1, '1: Rule 1: Be kind'),
+      teen('ModAction_teen', 21),
+    ],
+  ];
+  await modAction();
+  assert.equal(flairCalls.length, 0);
+  modLogSnapshots = undefined;
+  modLogEntries = [];
 });
 void test('automatic account checks remove active access without historic deletion', async () => {
   reset();
