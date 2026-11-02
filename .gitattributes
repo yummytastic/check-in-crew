@@ -1,0 +1,14 @@
+# Check out text files with LF on every platform (overrides core.autocrlf),
+# matching Prettier's `endOfLine: "lf"` so `npm run format:check` passes locally.
+* text=auto eol=lf
+
+# Binary assets, should any be added.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
