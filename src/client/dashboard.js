@@ -831,19 +831,63 @@ async function openDeleteDialog(seriesId, publicationKey) {
   });
   dialog.showModal();
 }
+// Comment totals fetched on request, kept in memory for this page only.
+const commentCounts = {};
+const commentCountText = (item) =>
+  item.publicationKey in commentCounts
+    ? `<br><span class="muted">${commentCounts[item.publicationKey].toLocaleString()} comment${commentCounts[item.publicationKey] === 1 ? '' : 's'}</span>`
+    : '';
+async function loadCommentCounts(button) {
+  const keys = JSON.parse(button.dataset.publicationKeys);
+  button.disabled = true;
+  button.textContent = 'Loading comment counts…';
+  try {
+    const response = await fetch('/api/dashboard/comment-counts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        seriesId: button.dataset.commentCounts,
+        publicationKeys: keys,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw Error(data.error || 'Unable to load comment counts.');
+    Object.assign(commentCounts, data.counts);
+    for (const key of keys) {
+      const cell = button
+        .closest('details')
+        ?.querySelector(`[data-comments-for="${CSS.escape(key)}"]`);
+      if (cell && key in data.counts)
+        cell.innerHTML = commentCountText({ publicationKey: key });
+    }
+    button.textContent = 'Refresh comment counts';
+  } catch (error) {
+    button.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+function commentCountsButton(series) {
+  const keys = (series.historyDays ?? [])
+    .filter((item) => item.status === 'posted' && item.publicationKey)
+    .map((item) => item.publicationKey);
+  if (!keys.length) return '';
+  return `<p><button type="button" class="secondary" data-comment-counts="${esc(series.id)}" data-publication-keys="${esc(JSON.stringify(keys))}">Show comment counts</button></p>`;
+}
 function scheduleMarkup(series, historyMonth) {
   const rowLabels = series.seriesType === 'simple' ? { daily: 'Post' } : labels;
   const renderRows = (days) =>
     days
       .map(
         (item) =>
-          `<tr><td>${series.seriesType === 'simple' ? esc(item.date) + '<br>' + esc(item.time) + '<br><span class=muted>' + esc(item.timezone) + '</span>' : item.day}</td><td>${esc(rowLabels[item.kind])}${item.customised ? ' <span class="badge">Custom</span>' : ''}</td><td class="status-${esc(item.status)}">${statusText(item)}${publicationDetails(item)}</td><td>${item.url ? `<button class="link-button" data-open-post="${esc(item.url)}">Open post</button>` : '—'}</td><td>${deletePostButton(series.id, item)}${item.status === 'deleted' || item.status === 'deleting' ? '' : `<button class="secondary" data-preview="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">${item.canEdit ? 'Preview/edit' : 'Preview'}</button>`}${item.canPublish ? ` <button class="secondary" data-publish="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">Post now</button>` : ''}</td></tr>`
+          `<tr><td>${series.seriesType === 'simple' ? esc(item.date) + '<br>' + esc(item.time) + '<br><span class=muted>' + esc(item.timezone) + '</span>' : item.day}</td><td>${esc(rowLabels[item.kind])}${item.customised ? ' <span class="badge">Custom</span>' : ''}</td><td class="status-${esc(item.status)}">${statusText(item)}${publicationDetails(item)}<span data-comments-for="${esc(item.publicationKey)}">${commentCountText(item)}</span></td><td>${item.url ? `<button class="link-button" data-open-post="${esc(item.url)}">Open post</button>` : '—'}</td><td>${deletePostButton(series.id, item)}${item.status === 'deleted' || item.status === 'deleting' ? '' : `<button class="secondary" data-preview="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">${item.canEdit ? 'Preview/edit' : 'Preview'}</button>`}${item.canPublish ? ` <button class="secondary" data-publish="${esc(series.id)}" data-date="${esc(item.date)}" data-kind="${esc(item.kind)}" data-slot-id="${esc(item.slotId)}">Post now</button>` : ''}</td></tr>`
       )
       .join('');
   const rows = renderRows(series.days);
   const history =
     series.seriesType === 'simple'
-      ? `<details><summary>History for ${esc(historyMonth)}</summary><div class="schedule"><table><thead><tr><th>Date</th><th>Post</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${renderRows(series.historyDays ?? []) || '<tr><td colspan="5">No past posts or publication attempts in this month.</td></tr>'}</tbody></table></div></details>`
+      ? `<details><summary>History for ${esc(historyMonth)}</summary>${commentCountsButton(series)}<div class="schedule"><table><thead><tr><th>Date</th><th>Post</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${renderRows(series.historyDays ?? []) || '<tr><td colspan="5">No past posts or publication attempts in this month.</td></tr>'}</tbody></table></div></details>`
       : '';
 
   return `<div class="schedule">${series.seriesType === 'simple' ? '<h3>Upcoming posts</h3><p class="muted">This window rolls forward as posts are published or their scheduled times pass, across month boundaries.</p>' : ''}<table><thead><tr><th>${series.seriesType === 'simple' ? 'Date' : 'Day'}</th><th>Thread</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No upcoming posts. Check the schedule start/end conditions.</td></tr>'}</tbody></table></div>${history}${draftMarkup(series)}`;
@@ -1280,6 +1324,11 @@ function bindScheduleActions(root, revision) {
         });
     })
   );
+  root
+    .querySelectorAll('[data-comment-counts]')
+    .forEach((button) =>
+      button.addEventListener('click', () => void loadCommentCounts(button))
+    );
   root
     .querySelectorAll('[data-open-post]')
     .forEach((button) =>

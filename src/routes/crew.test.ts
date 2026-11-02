@@ -58,6 +58,7 @@ let fakePost = {
   removed: false,
   createdAt: new Date(),
   flair: undefined as { templateId?: string } | undefined,
+  numberOfComments: 0,
   async remove() {
     removed++;
     this.removed = true;
@@ -2444,6 +2445,52 @@ void test('server form and automation integration', async (t) => {
         /changed/
       );
       assert.equal(sent, 0);
+    }
+  );
+  await t.test(
+    'comment counts are returned only for published posts in an accessible series',
+    async () => {
+      const cfg = reset();
+      cfg.series[0]!.enabled = true;
+      cfg.series[0]!.time = '00:00';
+      records.set('crew:config:v1', JSON.stringify(cfg));
+      await automation.request('/scheduler/tick', { method: 'POST' });
+      const posted = [...records.keys()].filter(
+        (key) =>
+          key.startsWith(`crew:post:${cfg.series[0]!.id}:`) &&
+          JSON.parse(records.get(key)!).status === 'posted'
+      );
+      assert.ok(posted.length >= 1);
+      fakePost.numberOfComments = 42;
+      const counts = async (body: Record<string, unknown>) => {
+        const res = await api.request('/dashboard/comment-counts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        return { status: res.status, data: await res.json() };
+      };
+      const ok = await counts({
+        seriesId: cfg.series[0]!.id,
+        publicationKeys: [
+          ...posted,
+          'crew:post:other-series:2026-11-01:daily',
+          'crew:config:v1',
+        ],
+      });
+      assert.equal(ok.status, 200);
+      assert.deepEqual(
+        ok.data.counts,
+        Object.fromEntries(posted.map((key) => [key, 42]))
+      );
+      ctx.userId = 't2_stranger';
+      const denied = await counts({
+        seriesId: cfg.series[0]!.id,
+        publicationKeys: posted,
+      });
+      assert.equal(denied.status, 403);
+      ctx.userId = 't2_admin';
+      fakePost.numberOfComments = 0;
     }
   );
   await t.test(

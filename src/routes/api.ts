@@ -458,6 +458,45 @@ api.get('/dashboard/preview', async (c) => {
   });
 });
 
+// Comment totals for published posts in one series, fetched on demand so
+// dashboard loads stay fast. Counts only: no usernames or comment text.
+api.post('/dashboard/comment-counts', async (c) => {
+  const who = await identity();
+  const body = (await c.req.json()) as {
+    seriesId?: unknown;
+    publicationKeys?: unknown;
+  };
+  const seriesId = typeof body.seriesId === 'string' ? body.seriesId : '';
+  const series = (await config()).series.find((s) => s.id === seriesId);
+  if (!series || !allowed(series, who))
+    return c.json({ error: 'You do not have access to this series.' }, 403);
+  const prefix = `crew:post:${series.id}:`;
+  const keys = Array.isArray(body.publicationKeys)
+    ? body.publicationKeys
+        .filter(
+          (key): key is string =>
+            typeof key === 'string' && key.startsWith(prefix)
+        )
+        .slice(0, 100)
+    : [];
+  const counts: Record<string, number> = {};
+  for (let i = 0; i < keys.length; i += 8)
+    await Promise.all(
+      keys.slice(i, i + 8).map(async (key) => {
+        const record = await publicationStore.read(key);
+        if (record?.status !== 'posted' || !record.postId) return;
+        try {
+          const post = await reddit.getPostById(
+            record.postId as `t3_${string}`
+          );
+          counts[key] = post.numberOfComments;
+        } catch {
+          // A deleted or unavailable post simply has no count.
+        }
+      })
+    );
+  return c.json({ counts });
+});
 api.post('/dashboard/action', async (c) => {
   const who = await identity();
   const body = (await c.req.json()) as {
