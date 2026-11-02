@@ -8,6 +8,7 @@ import {
   kgToStone,
   imperialToCm,
   cmToImperial,
+  parseMeasurement,
 } from '../tools/calculator.ts';
 
 // Measurements live only in this closure. Never pass them to access checks or links.
@@ -79,7 +80,7 @@ export function createPublicView(
           "'": '&#39;',
         })[c]
     );
-  const num = (value) => (value.trim() === '' ? NaN : Number(value));
+  const num = (value) => parseMeasurement(value);
   const textNumber = (value) =>
     Number.isFinite(value) ? String(Math.round(value * 10000) / 10000) : '';
   const button = (id, label, secondary = false) =>

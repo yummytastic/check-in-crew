@@ -42,9 +42,15 @@ export function validateFlairFormat(format: string): string | undefined {
   if (format && !formatFields(format).length)
     return 'Include at least one field placeholder.';
 }
+// "72,5" means 72.5 in many locales; flair always shows a decimal point.
+const decimalPoint = (text: string) =>
+  /^\d+,\d+$/.test(text) ? text.replace(',', '.') : text;
 function fieldText(field: FlairField, entry: FlairValue): string {
-  const value = typeof entry.value === 'string' ? entry.value.trim() : '';
-  const extra = typeof entry.extra === 'string' ? entry.extra.trim() : '';
+  const raw = typeof entry.value === 'string' ? entry.value.trim() : '';
+  const value = field.type === 'text' ? raw : decimalPoint(raw);
+  const extra = decimalPoint(
+    typeof entry.extra === 'string' ? entry.extra.trim() : ''
+  );
   if (!value && !extra) {
     if (field.required) throw Error(`${field.label} is required.`);
     return '';

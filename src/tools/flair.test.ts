@@ -110,3 +110,18 @@ void test('flair validates units, limits, configured fields, and required detail
   assert.ok(validateFlairFormat('{flair9}'));
   assert.equal(validateFlairFormat('{flair8}'), undefined);
 });
+void test('flair measurements accept a decimal comma and show a decimal point', () => {
+  assert.equal(
+    renderFlair(config, '3', { flair4: { value: '72,5', unit: 'kg' } }),
+    '72.5kg'
+  );
+  assert.equal(
+    renderFlair(config, '3', {
+      flair4: { value: '11', extra: '6,5', unit: 'st' },
+    }),
+    '11st 6.5lb'
+  );
+  assert.throws(() =>
+    renderFlair(config, '3', { flair4: { value: '1,2,3', unit: 'kg' } })
+  );
+});

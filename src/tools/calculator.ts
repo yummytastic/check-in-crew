@@ -38,6 +38,20 @@ export const activityLevels = [
       'Heavy activity throughout the day AND intensive training. Exceptional, athlete-level workloads; select only if this is your usual routine.',
   },
 ] as const;
+/**
+ * Parses a typed measurement. Accepts a decimal comma ("72,5") as well as a
+ * decimal point. Anything else containing a comma (e.g. "1,234,5" or
+ * "1.234,5") is ambiguous and rejected as NaN.
+ */
+export function parseMeasurement(value: string): number {
+  const text = value.trim();
+  if (text === '') return NaN;
+  const commas = text.split(',').length - 1;
+  if (commas === 0) return Number(text);
+  if (commas === 1 && !text.includes('.'))
+    return Number(text.replace(',', '.'));
+  return NaN;
+}
 export type CalculatorInput = {
   age: number;
   sex: string;

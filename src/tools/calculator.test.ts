@@ -10,6 +10,7 @@ import {
   activityLevels,
   stoneToKg,
   kgToStone,
+  parseMeasurement,
 } from './calculator.ts';
 
 void test('calorie estimates match independently worked examples and BMI rounds neutrally', () => {
@@ -107,4 +108,16 @@ void test('stone and pounds match pounds and kilograms, including exact boundari
     kg = stoneToKg(converted.stone, converted.pounds);
   }
   assert.ok(Math.abs(kg - 72.4567) < 1e-9);
+});
+void test('measurements accept a decimal point or a single decimal comma', () => {
+  assert.equal(parseMeasurement('72.5'), 72.5);
+  assert.equal(parseMeasurement('72,5'), 72.5);
+  assert.equal(parseMeasurement(' 180 '), 180);
+  assert.equal(parseMeasurement('0,5'), 0.5);
+  assert.ok(Number.isNaN(parseMeasurement('')));
+  assert.ok(Number.isNaN(parseMeasurement('   ')));
+  assert.ok(Number.isNaN(parseMeasurement('1,234,5')));
+  assert.ok(Number.isNaN(parseMeasurement('1.234,5')));
+  assert.equal(parseMeasurement('72,'), 72);
+  assert.ok(Number.isNaN(parseMeasurement('abc')));
 });
