@@ -8,9 +8,19 @@ import {
   kgToStone,
   imperialToCm,
   cmToImperial,
-} from './src/tools/calculator.ts';
+} from '../tools/calculator.ts';
 
 // Measurements live only in this closure. Never pass them to access checks or links.
+/**
+ * @param {HTMLElement} root
+ * @param {{
+ *   checkAccess: () => unknown,
+ *   openDashboard: (event: MouseEvent) => unknown,
+ *   openExpanded?: (event: MouseEvent) => boolean,
+ *   openFlair?: (event: MouseEvent) => boolean,
+ *   navigate: (url: string) => unknown,
+ * }} options
+ */
 export function createPublicView(
   root,
   {

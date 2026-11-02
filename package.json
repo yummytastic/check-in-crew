@@ -9,10 +9,10 @@
     "deploy": "npm run test:types && npm run lint && devvit upload",
     "dev": "devvit playtest",
     "launch": "npm run deploy && devvit publish",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint \"src/**/*.{ts,tsx,js}\"",
     "login": "devvit login",
     "prettier": "prettier --write .",
-    "test:types": "tsc --build",
+    "test:types": "tsc --build && tsc -p tsconfig.client.json",
     "test:unit": "node --experimental-strip-types --experimental-test-module-mocks --no-warnings=ExperimentalWarning --test \"src/**/*.test.ts\""
   },
   "engines": {

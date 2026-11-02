@@ -17,6 +17,8 @@ const publicView = createPublicView(publicRoot, {
   openExpanded: (event) => {
     if (getWebViewMode() === 'expanded') return false;
     expandedSurface = 'tool';
+    // @ts-expect-error -- entry is deliberately omitted so this web view expands
+    // in place and the calculator keeps its state (passing an entry reloads it).
     requestExpandedMode(event);
     window.setTimeout(syncViewMode, 250);
     return true;
@@ -134,7 +136,9 @@ function syncCreateFields() {
     'create-signup': !simple,
     'create-roundup': !simple,
   })) {
-    const control = document.getElementById(id);
+    const control = /** @type {HTMLInputElement} */ (
+      document.getElementById(id)
+    );
     control.closest('label').hidden = !show;
     control.disabled = !show;
   }
@@ -142,20 +146,6 @@ function syncCreateFields() {
     ? 'Post highlighting'
     : 'Daily check-in';
 }
-const weekdays = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-];
-const stickyLabels = {
-  none: 'Not stickied',
-  slot1: 'Sticky slot 1',
-  slot2: 'Sticky slot 2',
-};
 function titleShortcodes(series) {
   return series.seriesType === 'simple'
     ? [
@@ -283,7 +273,7 @@ function syncEditors(root = document) {
 }
 for (const event of ['input', 'change'])
   document.addEventListener(event, (e) => {
-    if (e.target.closest('[data-edit-group]')) {
+    if (/** @type {Element} */ (e.target).closest('[data-edit-group]')) {
       markDirty(e.target);
       syncEditors();
     }
@@ -313,11 +303,12 @@ function syncViewMode() {
       expandedSurface = 'home';
       publicView.showHome();
     }
-    load({ preserveDrafts: true });
+    void load({ preserveDrafts: true });
   }
 }
 window.addEventListener('focus', syncViewMode);
 document.addEventListener('visibilitychange', syncViewMode);
+/** @param {{ preserveDrafts?: boolean, savedGroup?: string }} [options] */
 async function load({ preserveDrafts = false, savedGroup } = {}) {
   const request = ++dashboardRequest;
   authorised = false;
@@ -1154,7 +1145,7 @@ function render() {
   document.querySelectorAll('[data-reset-templates]').forEach((button) =>
     button.addEventListener('click', () => {
       if (window.confirm('Reset this series’ post bodies to the defaults?'))
-        send({
+        void send({
           action: 'templates',
           revision: state.revision,
           seriesId: button.dataset.resetTemplates,
@@ -1165,7 +1156,7 @@ function render() {
   document.querySelectorAll('[data-reset-titles]').forEach((button) =>
     button.addEventListener('click', () => {
       if (window.confirm('Reset this series’ title formats to the defaults?'))
-        send({
+        void send({
           action: 'templates',
           revision: state.revision,
           seriesId: button.dataset.resetTitles,
@@ -1176,7 +1167,7 @@ function render() {
   document.querySelectorAll('[data-reset-host-credit]').forEach((button) =>
     button.addEventListener('click', () => {
       if (window.confirm('Reset this series host credit to the default?'))
-        send({
+        void send({
           action: 'templates',
           revision: state.revision,
           seriesId: button.dataset.resetHostCredit,
@@ -1262,7 +1253,7 @@ function bindScheduleActions(root, revision) {
           'Resume permanently deleting the remaining posts and series data? Already deleted posts cannot be restored.'
         )
       )
-        send({
+        void send({
           action: 'retryDeletion',
           seriesId: button.dataset.retryDeletion,
           revision,
@@ -1278,7 +1269,7 @@ function bindScheduleActions(root, revision) {
             ' now from the Check-In Crew app account? This creates a real post and marks this topic as posted, so the scheduler will not post it again.'
         )
       )
-        send({
+        void send({
           action: 'publish',
           revision,
           seriesId: button.dataset.publish,
@@ -1655,7 +1646,7 @@ async function send(body) {
   }
 }
 document.querySelector('#refresh').addEventListener('click', () => {
-  if (mayDiscard()) load();
+  if (mayDiscard()) void load();
 });
 document.querySelector('#public-home').addEventListener('click', () => {
   if (!mayDiscard()) return;
@@ -1735,8 +1726,8 @@ document
   .forEach((button) => button.addEventListener('click', openTimezonePicker));
 syncCreateFields();
 syncScheduleFields();
-loadPublicOptions();
-load();
+void loadPublicOptions();
+void load();
 
 // Refresh schedules without replacing any unsaved template or host edits.
 let refreshingSchedule = false;

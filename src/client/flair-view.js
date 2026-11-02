@@ -1,4 +1,4 @@
-import { formatFields, renderFlair } from './src/tools/flair.ts';
+import { formatFields, renderFlair } from '../tools/flair.ts';
 
 // Deliberately independent of calculator state. Only Apply sends the selected fields.
 export function createFlairView(root, { back }) {
