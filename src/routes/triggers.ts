@@ -8,6 +8,7 @@ import type {
 } from '@devvit/web/shared';
 import {
   TEEN_GUIDANCE_KEY,
+  findModAction,
   flairPostForRemovalReason,
   parseTeenGuidance,
   type RemovalReasonFlairDeps,
@@ -43,11 +44,11 @@ triggers.post('/on-app-upgrade', async (c) => {
 const LOG_LOOKUP_DELAYS_MS = [0, 1000, 2000];
 
 async function findRemovalReasonEntry(
-  actionId: string | undefined,
-  postId: string
+  actionId: string
 ): Promise<RemovalReasonLogEntry | undefined> {
   // The trigger payload has no reason text; the moderation-log entry does.
-  // The log can lag the trigger slightly, so look a few times.
+  // The log can lag the trigger slightly, so look for this exact action a few
+  // times. Never fall back to another entry for the same post.
   for (const delay of LOG_LOOKUP_DELAYS_MS) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
     const entries = await reddit
@@ -57,9 +58,7 @@ async function findRemovalReasonEntry(
         limit: 25,
       })
       .all();
-    const entry =
-      (actionId && entries.find((item) => item.id === actionId)) ||
-      entries.find((item) => item.target?.id === postId);
+    const entry = findModAction(entries, actionId);
     if (entry) return entry;
   }
   return undefined;

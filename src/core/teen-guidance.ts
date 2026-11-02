@@ -60,6 +60,33 @@ export function reasonTextMatchesTitle(
   return normaliseTitle(withoutPosition) === normaliseTitle(title);
 }
 
+const modActionKey = (id: string | undefined) =>
+  (id ?? '')
+    .trim()
+    .replace(/^ModAction_/i, '')
+    .toLowerCase();
+
+/**
+ * True only for the same moderator action. The log uses "ModAction_<uuid>";
+ * the prefix is ignored in case the trigger reports the bare ID. There is
+ * deliberately no fallback on the target post: an earlier action on the same
+ * post may carry a different reason.
+ */
+export function sameModAction(
+  a: string | undefined,
+  b: string | undefined
+): boolean {
+  const key = modActionKey(a);
+  return key !== '' && key === modActionKey(b);
+}
+
+export function findModAction<T extends { id?: string | undefined }>(
+  entries: T[],
+  actionId: string
+): T | undefined {
+  return entries.find((entry) => sameModAction(entry.id, actionId));
+}
+
 export type ModActionEvent = {
   id?: string | undefined;
   action?: string | undefined;
@@ -83,11 +110,11 @@ export type RemovalReasonFlairDeps = {
   appUsername(): Promise<string | undefined>;
   removalReasons(): Promise<{ id: string; title?: string | undefined }[]>;
   flairTemplates(): Promise<{ id: string }[]>;
-  /** The moderation-log entry for this action; the trigger omits the reason. */
-  findLogEntry(
-    actionId: string | undefined,
-    postId: string
-  ): Promise<RemovalReasonLogEntry | undefined>;
+  /**
+   * The moderation-log entries to search for this exact action; the trigger
+   * omits the reason. Called again (after a delay) while the action is absent.
+   */
+  findLogEntry(actionId: string): Promise<RemovalReasonLogEntry | undefined>;
   getPost(postId: string): Promise<{
     subredditName: string;
     flairTemplateId?: string | undefined;
@@ -104,6 +131,7 @@ export type RemovalReasonFlairOutcome =
   | 'disabled'
   | 'comment-target'
   | 'missing-post'
+  | 'missing-action-id'
   | 'other-subreddit'
   | 'app-action'
   | 'not-configured'
@@ -124,7 +152,8 @@ const sameName = (a: string | undefined, b: string | undefined) =>
  * Sets the configured post flair when another moderator applies the configured
  * teen-guidance removal reason to a post. Only ever sets post flair. Repeat
  * deliveries are harmless: a post already carrying the template is left alone.
- * Logs IDs and an outcome code only, never usernames or guidance text.
+ * Logs IDs, an outcome code and which log field matched; never usernames,
+ * guidance text or the log entry's text.
  */
 export async function flairPostForRemovalReason(
   event: ModActionEvent,
@@ -148,6 +177,8 @@ export async function flairPostForRemovalReason(
   // A reason on a comment can also name the containing post; never flair it.
   if (event.targetComment?.id) return skip('comment-target');
   if (!/^t3_[A-Za-z0-9]+$/.test(postId)) return skip('missing-post');
+  // The exact action is the only safe link to its removal reason.
+  if (!modActionKey(event.id)) return skip('missing-action-id');
   if (
     event.subreddit?.name &&
     !sameName(event.subreddit.name, deps.subredditName)
@@ -177,21 +208,19 @@ export async function flairPostForRemovalReason(
   )
     return skip('duplicate-reason-title');
 
-  const entry = await deps.findLogEntry(event.id, postId);
-  if (!entry) return skip('log-entry-not-found');
-  // Reason text is the reason's title, not guidance text; kept short for diagnosis.
-  const logged = {
-    logDescription: entry.description?.slice(0, 120),
-    logDetails: entry.details?.slice(0, 120),
-  };
+  const entry = await deps.findLogEntry(event.id!);
+  if (!entry || !sameModAction(entry.id, event.id))
+    return skip('log-entry-not-found');
   if (entry.target?.id && entry.target.id !== postId)
-    return skip('log-target-mismatch', logged);
+    return skip('log-target-mismatch');
   if (sameName(entry.moderatorName, app)) return skip('app-action');
-  if (
-    !reasonTextMatchesTitle(entry.details, reason.title) &&
-    !reasonTextMatchesTitle(entry.description, reason.title)
-  )
-    return skip('different-reason', logged);
+  // Record which field held the reason, never its contents.
+  const matchedField = reasonTextMatchesTitle(entry.details, reason.title)
+    ? 'details'
+    : reasonTextMatchesTitle(entry.description, reason.title)
+      ? 'description'
+      : undefined;
+  if (!matchedField) return skip('different-reason');
 
   const post = await deps.getPost(postId);
   if (!sameName(post.subredditName, deps.subredditName))
@@ -199,5 +228,5 @@ export async function flairPostForRemovalReason(
   if (post.flairTemplateId === config.flairTemplateId)
     return skip('already-flaired');
   await deps.setPostFlair(postId, config.flairTemplateId);
-  return skip('flaired', logged);
+  return skip('flaired', { matchedField });
 }

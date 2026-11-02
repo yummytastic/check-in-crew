@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  findModAction,
   flairPostForRemovalReason,
   parseTeenGuidance,
   reasonTextMatchesTitle,
@@ -33,6 +34,8 @@ function harness(
     reasons?: { id: string; title?: string }[];
     flairs?: { id: string }[];
     entry?: RemovalReasonLogEntry | undefined;
+    /** The whole moderation log; overrides `entry`. */
+    log?: RemovalReasonLogEntry[];
     post?: { subredditName: string; flairTemplateId?: string };
     app?: string;
   } = {}
@@ -66,16 +69,23 @@ function harness(
       calls.reddit++;
       return options.flairs ?? [{ id: 'flair-teen' }, { id: 'flair-other' }];
     },
-    findLogEntry: async () => {
+    findLogEntry: async (actionId) => {
       calls.reddit++;
-      return 'entry' in options
-        ? options.entry
-        : {
-            id: 'ModAction_1',
-            moderatorName: 'Yummytastic',
-            details: '2: Teenage Weightloss Guidance',
-            target: { id: 't3_post' },
-          };
+      const log =
+        options.log ??
+        ('entry' in options
+          ? options.entry
+            ? [options.entry]
+            : []
+          : [
+              {
+                id: 'ModAction_1',
+                moderatorName: 'Yummytastic',
+                details: '2: Teenage Weightloss Guidance',
+                target: { id: 't3_post' },
+              },
+            ]);
+      return findModAction(log, actionId);
     },
     getPost: async () => {
       calls.reddit++;
@@ -129,14 +139,104 @@ void test('log reason text matches the title with or without a position prefix',
   assert.ok(!reasonTextMatchesTitle('2: ', ''));
 });
 
+void test('log entries match only the exact action, with or without the ModAction_ prefix', () => {
+  const log = [{ id: 'ModAction_abc-123' }, { id: 'ModAction_def-456' }];
+  assert.equal(findModAction(log, 'ModAction_abc-123'), log[0]);
+  assert.equal(findModAction(log, 'abc-123'), log[0]);
+  assert.equal(findModAction(log, 'ModAction_ABC-123'), log[0]);
+  assert.equal(findModAction(log, 'ModAction_zzz'), undefined);
+  assert.equal(findModAction(log, ''), undefined);
+  assert.equal(findModAction(log, 'ModAction_'), undefined);
+  assert.equal(findModAction([{ id: undefined }], ''), undefined);
+});
+
+void test('a new different reason never borrows an earlier teen-guidance entry on the same post', async () => {
+  const earlierTeenGuidance = {
+    id: 'ModAction_earlier',
+    moderatorName: 'Yummytastic',
+    details: '2: Teenage Weightloss Guidance',
+    target: { id: 't3_post' },
+  };
+  // The newer action has not reached the log yet.
+  const lagging = harness({ log: [earlierTeenGuidance] });
+  assert.equal(
+    await flairPostForRemovalReason(
+      event({ id: 'ModAction_newer' }),
+      lagging.deps
+    ),
+    'log-entry-not-found'
+  );
+  // Once it appears, its own (different) reason is what counts.
+  const arrived = harness({
+    log: [
+      {
+        id: 'ModAction_newer',
+        moderatorName: 'Yummytastic',
+        details: '1: Rule 1: Be kind',
+        target: { id: 't3_post' },
+      },
+      earlierTeenGuidance,
+    ],
+  });
+  assert.equal(
+    await flairPostForRemovalReason(
+      event({ id: 'ModAction_newer' }),
+      arrived.deps
+    ),
+    'different-reason'
+  );
+  assert.equal(
+    lagging.calls.setFlair.length + arrived.calls.setFlair.length,
+    0
+  );
+});
+
+void test('an event without an action ID is skipped before any Reddit call', async () => {
+  for (const id of [undefined, '', 'ModAction_']) {
+    const { deps, calls } = harness();
+    assert.equal(
+      await flairPostForRemovalReason(event({ id }), deps),
+      'missing-action-id'
+    );
+    assert.equal(calls.reddit, 0);
+    assert.equal(calls.setFlair.length, 0);
+  }
+});
+
+void test('diagnostic logs never include the log entry text', async () => {
+  const marker = 'GUIDANCE TEXT THAT MUST NOT BE LOGGED';
+  for (const entry of [
+    {
+      id: 'ModAction_1',
+      details: `2: Teenage Weightloss Guidance`,
+      description: marker,
+      target: { id: 't3_post' },
+    },
+    { id: 'ModAction_1', details: marker, target: { id: 't3_post' } },
+    { id: 'ModAction_1', details: marker, target: { id: 't1_other' } },
+  ]) {
+    const { deps, calls } = harness({ entry });
+    await flairPostForRemovalReason(event(), deps);
+    assert.ok(calls.logs.length > 0);
+    assert.doesNotMatch(JSON.stringify(calls.logs), /MUST NOT BE LOGGED/);
+  }
+});
+
 void test('another moderator applying the reason to a post sets the flair', async () => {
   const { deps, calls } = harness();
   assert.equal(await flairPostForRemovalReason(event(), deps), 'flaired');
   assert.deepEqual(calls.setFlair, ['t3_post:flair-teen']);
-  // Diagnosis uses IDs and the logged reason title only.
-  const logged = JSON.stringify(calls.logs);
-  assert.match(logged, /t3_post/);
-  assert.doesNotMatch(logged, /Yummytastic/);
+  // Diagnosis uses IDs, the outcome and which log field matched.
+  assert.deepEqual(calls.logs, [
+    {
+      outcome: 'flaired',
+      details: {
+        actionId: 'ModAction_1',
+        postId: 't3_post',
+        matchedField: 'details',
+      },
+    },
+  ]);
 });
 
 void test('the reason title can come from the log description instead', async () => {
@@ -149,6 +249,7 @@ void test('the reason title can come from the log description instead', async ()
   });
   assert.equal(await flairPostForRemovalReason(event(), deps), 'flaired');
   assert.equal(calls.setFlair.length, 1);
+  assert.equal(calls.logs[0]?.details.matchedField, 'description');
 });
 
 void test('a post carrying another flair has it replaced', async () => {

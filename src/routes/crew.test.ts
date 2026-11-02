@@ -507,6 +507,10 @@ void test('moderator removal-reason flair is saved off by default and flairs via
   assert.equal(flairCalls.length, 0);
 
   assert.equal((await save({ flairOnModeratorRemoval: true })).status, 200);
+  // A newer action not yet in the log must not borrow the earlier
+  // teen-guidance entry for the same post (retries, then skips).
+  assert.equal((await modAction({ id: 'ModAction_newer' })).status, 200);
+  assert.equal(flairCalls.length, 0);
   // A reason applied to a comment never flairs the containing post.
   await modAction({ targetComment: { id: 't1_comment' } });
   assert.equal(flairCalls.length, 0);
