@@ -855,9 +855,9 @@ async function loadCommentCounts(button) {
       throw Error(data.error || 'Unable to load comment counts.');
     Object.assign(commentCounts, data.counts);
     for (const key of keys) {
-      const cell = button
-        .closest('details')
-        ?.querySelector(`[data-comments-for="${CSS.escape(key)}"]`);
+      const cell = document.querySelector(
+        `[data-comments-for="${CSS.escape(key)}"]`
+      );
       if (cell && key in data.counts)
         cell.innerHTML = commentCountText({ publicationKey: key });
     }
@@ -868,8 +868,8 @@ async function loadCommentCounts(button) {
     button.disabled = false;
   }
 }
-function commentCountsButton(series) {
-  const keys = (series.historyDays ?? [])
+function commentCountsButton(series, items) {
+  const keys = (items ?? [])
     .filter((item) => item.status === 'posted' && item.publicationKey)
     .map((item) => item.publicationKey);
   if (!keys.length) return '';
@@ -887,10 +887,11 @@ function scheduleMarkup(series, historyMonth) {
   const rows = renderRows(series.days);
   const history =
     series.seriesType === 'simple'
-      ? `<details><summary>History for ${esc(historyMonth)}</summary>${commentCountsButton(series)}<div class="schedule"><table><thead><tr><th>Date</th><th>Post</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${renderRows(series.historyDays ?? []) || '<tr><td colspan="5">No past posts or publication attempts in this month.</td></tr>'}</tbody></table></div></details>`
+      ? `<details><summary>History for ${esc(historyMonth)}</summary>${commentCountsButton(series, series.historyDays)}<div class="schedule"><table><thead><tr><th>Date</th><th>Post</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${renderRows(series.historyDays ?? []) || '<tr><td colspan="5">No past posts or publication attempts in this month.</td></tr>'}</tbody></table></div></details>`
       : '';
 
-  return `<div class="schedule">${series.seriesType === 'simple' ? '<h3>Upcoming posts</h3><p class="muted">This window rolls forward as posts are published or their scheduled times pass, across month boundaries.</p>' : ''}<table><thead><tr><th>${series.seriesType === 'simple' ? 'Date' : 'Day'}</th><th>Thread</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No upcoming posts. Check the schedule start/end conditions.</td></tr>'}</tbody></table></div>${history}${draftMarkup(series)}`;
+  // Monthly series show this month's published posts in the main table.
+  return `<div class="schedule">${series.seriesType === 'simple' ? '' : commentCountsButton(series, series.days)}${series.seriesType === 'simple' ? '<h3>Upcoming posts</h3><p class="muted">This window rolls forward as posts are published or their scheduled times pass, across month boundaries.</p>' : ''}<table><thead><tr><th>${series.seriesType === 'simple' ? 'Date' : 'Day'}</th><th>Thread</th><th>Status</th><th>Link</th><th>Action</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No upcoming posts. Check the schedule start/end conditions.</td></tr>'}</tbody></table></div>${history}${draftMarkup(series)}`;
 }
 function render() {
   app.querySelectorAll('[data-series-details]').forEach((details) => {
